@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title data-t="title"></title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <h1 id="picked" data-t="viewer.none"></h1>
+    <div class="tools">
+      <button type="button" id="controls-open" data-t="controls.open"></button>
+      <button type="button" id="hide-selected" hidden
+              data-t="tools.hide" data-t-title="tools.hideTip"></button>
+      <button type="button" id="undo" disabled
+              data-t="tools.undo" data-t-title="tools.undoTip"></button>
+      <button type="button" id="unhide-all" disabled
+              data-t="tools.unhideAll" data-t-title="tools.unhideAllTip"></button>
+    </div>
+  </header>
+  <main>
+    <div class="stage" id="stage">
+      <section class="quiz" id="quiz" hidden>
+        <div class="quiz-head">
+          <span class="quiz-topic" id="quiz-topic"></span>
+          <span class="quiz-progress" id="quiz-progress"></span>
+          <span class="quiz-timer" id="quiz-timer" data-t-title="run.timerLabel" hidden></span>
+        </div>
+        <p class="quiz-prompt" id="quiz-prompt"></p>
+        <p class="quiz-hint" id="quiz-hint" data-t="quiz.multiHint" hidden></p>
+        <form class="quiz-guess" id="quiz-guess-form" autocomplete="off" hidden>
+          <input id="quiz-guess" type="text" autocomplete="off" autocorrect="off"
+                 autocapitalize="off" spellcheck="false"
+                 data-t-placeholder="quiz.guessPlaceholder" data-t-aria-label="quiz.guessLabel">
+        </form>
+        <div class="quiz-result" id="quiz-result" hidden>
+          <p class="quiz-verdict" id="quiz-verdict"></p>
+          <p class="quiz-explain" id="quiz-explain"></p>
+          <a class="quiz-source" id="quiz-source" target="_blank" rel="noopener"></a>
+        </div>
+        <div class="quiz-actions">
+          <button type="button" id="quiz-quit" class="quiz-quit" data-t="quiz.quit"></button>
+          <button type="button" id="quiz-reveal" data-t="quiz.reveal"></button>
+          <button type="button" id="quiz-submit" data-t="quiz.submit" disabled></button>
+          <button type="button" id="quiz-next" data-t="quiz.next" hidden></button>
+        </div>
+      </section>
+      <button type="button" class="new-quiz" id="new-quiz" data-t="quiz.new" hidden></button>
+      <div class="body-toggle" id="body-toggle" role="radiogroup" data-t-aria-label="body.label"></div>
+    </div>
+    <aside class="systems" id="systems"></aside>
+  </main>
+  <div class="modal" id="start" hidden>
+    <form class="modal-card" id="start-form" role="dialog" aria-modal="true" aria-labelledby="start-title">
+      <h2 id="start-title" data-t="title"></h2>
+      <p class="modal-intro" data-t="start.intro"></p>
+      <fieldset>
+        <legend data-t="start.category"></legend>
+        <div class="choices" id="start-categories"></div>
+      </fieldset>
+      <fieldset id="start-group-set">
+        <legend data-t="start.group"></legend>
+        <div class="choices" id="start-groups"></div>
+      </fieldset>
+      <fieldset id="start-mode-set">
+        <legend data-t="start.mode"></legend>
+        <div class="choices" id="start-modes"></div>
+      </fieldset>
+      <fieldset id="start-count-set">
+        <legend data-t="start.count"></legend>
+        <div class="choices" id="start-counts"></div>
+      </fieldset>
+      <div class="modal-actions">
+        <button type="button" id="start-explore" data-t="start.explore"></button>
+        <button type="submit" class="primary" id="start-go" data-t="start.go"></button>
+      </div>
+    </form>
+  </div>
+  <div class="modal" id="done" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="done-title">
+      <h2 id="done-title" data-t="done.title"></h2>
+      <p class="done-score" id="done-score"></p>
+      <ul class="done-topics" id="done-topics"></ul>
+      <ol class="done-list" id="done-list"></ol>
+      <div class="modal-actions">
+        <button type="button" id="done-explore" data-t="done.explore"></button>
+        <button type="button" class="primary" id="done-again" data-t="done.again"></button>
+      </div>
+    </div>
+  </div>
+  <div class="modal" id="controls" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="controls-title">
+      <h2 id="controls-title" data-t="controls.title"></h2>
+      <dl class="controls-list">
+        <dt data-t="controls.rotate.key"></dt><dd data-t="controls.rotate"></dd>
+        <dt data-t="controls.pan.key"></dt><dd data-t="controls.pan"></dd>
+        <dt data-t="controls.zoom.key"></dt><dd data-t="controls.zoom"></dd>
+        <dt data-t="controls.select.key"></dt><dd data-t="controls.select"></dd>
+        <dt data-t="controls.multi.key"></dt><dd data-t="controls.multi"></dd>
+        <dt data-t="controls.solo.key"></dt><dd data-t="controls.solo"></dd>
+        <dt data-t="controls.hide.key"></dt><dd data-t="controls.hide"></dd>
+        <dt data-t="controls.hideKey.key"></dt><dd data-t="controls.hideKey"></dd>
+        <dt data-t="controls.undo.key"></dt><dd data-t="controls.undo"></dd>
+        <dt data-t="controls.submit.key"></dt><dd data-t="controls.submit"></dd>
+      </dl>
+      <div class="modal-actions">
+        <button type="button" class="primary" id="controls-close" data-t="controls.close"></button>
+      </div>
+    </div>
+  </div>
+  <footer data-t="viewer.attribution"></footer>
+</div>
+<script src="https://unpkg.com/three@0.147.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="i18n/en.js"></script>
+<script src="i18n/questions.en.js"></script>
+<script src="data/bodydata.js"></script>
+<script src="js/viewer.js"></script>
+</body>
+</html>
