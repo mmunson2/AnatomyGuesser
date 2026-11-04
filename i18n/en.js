@@ -98,7 +98,8 @@ window.I18N = {
   'run.notOnList': '“{guess}” isn’t one of them.',
   'run.clickFirst': 'Click a faded structure first, then name it.',
   'run.nameIt': 'Name the selected structure.',
-  'run.wrongPart': 'That’s the {part}, not the one you selected.',
+  // A real structure's name, but not the selected one's.
+  'run.wrongPart': '“{guess}” isn’t the selected structure.',
   'run.notIt': '“{guess}” isn’t it.',
   'done.run.won': 'All named!',
   'done.run.time': 'Time’s up',

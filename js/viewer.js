@@ -218,7 +218,7 @@
       const mesh = meshAt(e, (p) => p.system !== 'integumentary');
       if (mesh) hide([mesh]);
     } else if (e.button === 0 && run) {
-      pickInRun(meshAt(e, (p) => run.ids.has(p.id)));
+      pickInRun(meshAt(e, (p) => run.ids.includes(p.id)));
     } else if (e.button === 0) {
       const mesh = meshAt(e, (p) => p.kind === 'target');
       // Once an answer is in, the marks stay put until Next; and a name
@@ -838,7 +838,6 @@
     mesh.material.color.setHex(HIGHLIGHT);
     setOpacity(mesh, 1);
     feedback(t('run.nameIt'), true);
-    guessInput.value = '';
     guessInput.focus();
   }
 
@@ -857,31 +856,30 @@
     if (run.found.size === run.ids.length) endRun('won');
   }
 
-  // Runs on every keystroke; `force` is Enter. Find all scores an exact
-  // name for the clicked part as soon as it's typed, and forgives small
-  // typos on Enter, as in the quiz. Name all waits for Enter and takes only
-  // an exact name or alias (case, accents, punctuation, word order and a
-  // plural -s still don't matter; see nameKey).
+  // Runs on every keystroke; `force` is Enter. Both modes wait for Enter and
+  // take only an exact name or alias (case, accents, punctuation, word order
+  // and a plural -s still don't matter; see nameKey). Find all scores only
+  // the part the player clicked.
   function runGuess(force) {
     guessInput.classList.remove('wrong');
+    if (!force) return;
     const text = guessInput.value;
     const key = nameKey(text);
     if (!key) return;
+    const named = (ids) => ids.find((id) => nameKeys[id].includes(key));
+    // Without a part clicked, keep the text so it can go in after the click.
+    const target = run.target && pidOf(run.target);
+    if (run.mode === 'find' && !target) { shake(t('run.clickFirst')); return; }
+    guessInput.value = '';
 
     if (run.mode === 'find') {
-      const target = run.target && pidOf(run.target);
-      if (target && nameKeys[target].includes(key)) { accept(target); return; }
-      if (!force) return;
-      if (!target) { shake(t('run.clickFirst')); return; }
-      if (nameMatches(text, target)) { accept(target); return; }
-      const named = Object.keys(nameKeys).find((pid) => nameMatches(text, pid));
-      shake(named ? t('run.wrongPart', { part: t('part.' + named) }) : t('run.notIt', { guess: text.trim() }));
+      if (nameKeys[target].includes(key)) { accept(target); return; }
+      const other = named(Object.keys(nameKeys));
+      shake(t(other ? 'run.wrongPart' : 'run.notIt', { guess: text.trim() }));
       return;
     }
 
-    if (!force) return;
-    const pid = run.ids.find((id) => nameKeys[id].includes(key));
-    guessInput.value = '';
+    const pid = named(run.ids);
     if (!pid) shake(t('run.notOnList', { guess: text.trim() }));
     else if (run.found.has(pid)) feedback(t('run.already', { part: t('part.' + pid) }), false);
     else accept(pid);
