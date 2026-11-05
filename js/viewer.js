@@ -13,6 +13,9 @@
     endocrine: 0x8e6bbf, reproductive: 0x6b8fbf, skeletal: 0xeee8d5,
     integumentary: 0xd8a98a,
   };
+  // Veins (ids ending in _vein or _veins, and the venae cavae) are blue.
+  const VEIN_COLOR = 0x2e5aa8;
+  const isVein = (pid) => /_veins?$/.test(pid) || pid === 'vena_cava';
   const HIGHLIGHT = 0x36c2ff, RIGHT = 0x3fcf7f, WRONG = 0xff5555, MISSED = 0xffb340;
 
   const stage = document.getElementById('stage');
@@ -54,7 +57,7 @@
 
     const skin = part.system === 'integumentary';
     const mat = new THREE.MeshStandardMaterial({
-      color: SYSTEM_COLORS[part.system], roughness: 0.6, metalness: 0,
+      color: isVein(part.id) ? VEIN_COLOR : SYSTEM_COLORS[part.system], roughness: 0.6, metalness: 0,
       transparent: skin, opacity: skin ? 0.12 : 1, depthWrite: !skin,
       side: skin ? THREE.FrontSide : THREE.DoubleSide,
     });
@@ -335,8 +338,11 @@
   function questionPool() {
     const clues = shuffled(category().questions.filter((q) =>
       answerIds(q).every((id) => meshById[id] && inCategory(id))));
-    const named = shuffled(categoryMeshes()
-      .map((m) => ({ id: 'name-' + m.userData.part.id, type: 'name', answer: m.userData.part.id, topic: 'name' })));
+    // Vessels are too thin to spot through the x-rayed body, so their
+    // questions show the cardiovascular system alone.
+    const named = shuffled(categoryMeshes().map((m) => m.userData.part.id).map((id) => ({
+      id: 'name-' + id, type: 'name', answer: id, topic: 'name',
+      ...(structureKind(id) === 'vessel' && { focus: 'cardiovascular' }) })));
     // Alternate the two kinds, so any length is half and half.
     const mixed = [];
     for (let i = 0; i < Math.min(clues.length, named.length); i++) mixed.push(clues[i], named[i]);
@@ -349,18 +355,19 @@
 
   // Each question starts from the full body: anything hidden (structures or
   // whole systems) comes back, as with Unhide all.
-  // What to call the part in a "name it" prompt: bone, muscle or organ by
-  // system, with a few parts that are none of those.
-  const KIND_OVERRIDES = { costal_cartilage: 'cartilage', aorta: 'vessel', vena_cava: 'vessel' };
+  // What to call the part in a "name it" prompt: bone, muscle or vessel by
+  // system, else organ, with a few exceptions.
+  const KIND_OVERRIDES = { costal_cartilage: 'cartilage', heart: 'organ' };
   // (Looked up in either body, so it works for parts the other body has.)
   const systemOf = Object.fromEntries(BODY_DATA.parts.map((p) => [p.id, p.system]));
   const structureKind = (pid) => KIND_OVERRIDES[pid]
-    ?? { skeletal: 'bone', muscular: 'muscle' }[systemOf[pid]] ?? 'organ';
+    ?? { skeletal: 'bone', muscular: 'muscle', cardiovascular: 'vessel' }[systemOf[pid]] ?? 'organ';
   // Parts made of several structures get "(s)" in the prompt.
   const MANY = new Set(['lungs', 'vena_cava', 'cervical_vertebrae', 'thoracic_vertebrae',
     'lumbar_vertebrae', 'ribs', 'costal_cartilage', 'carpals', 'metacarpals', 'finger_phalanges',
     'tarsals', 'metatarsals', 'toe_phalanges', 'rhomboids', 'forearm_flexors', 'forearm_extensors',
-    'erector_spinae', 'iliopsoas', 'adductors', 'fibularis', 'ovary', 'fallopian_tube', 'breast']);
+    'erector_spinae', 'iliopsoas', 'adductors', 'fibularis', 'ovary', 'fallopian_tube', 'breast',
+    'pulmonary_trunk', 'palmar_arches']);
   // The target parts a category asks about: all of them, or those of the chosen group's `kinds`.
   const inCategory = (pid) => !group() || group().kinds.includes(structureKind(pid));
   const categoryMeshes = () =>
@@ -441,8 +448,11 @@
   }
 
   // Explanation, source and buttons once an answer is in. `about` is the
-  // question whose explanation to show, or null for none.
-  function showResult(about) {
+  // question whose explanation to show, or null for none. Explanations follow
+  // on from their clue, so a borrowed one (`withClue`) shows the clue first.
+  function showResult(about, withClue = false) {
+    q$('clue').textContent = withClue && about ? about.prompt : '';
+    q$('clue').hidden = !(withClue && about);
     q$('explain').textContent = about ? about.explain : '';
     q$('explain').hidden = !about;
     q$('source').hidden = !about;
@@ -461,7 +471,7 @@
   }
 
   // Name questions: guess is the typed text, or null when they gave up. The
-  // explanation borrows a clue question about the same part, if there is one.
+  // explanation borrows a single-answer clue about the same part, if there is one.
   function finishName(guess) {
     answered = true;
     const target = meshById[question.answer];
@@ -475,8 +485,9 @@
     verdict.textContent = right ? t('quiz.correct', { part: partName(target) })
       : guess !== null ? t('quiz.nameWrong', { guess: guess.trim(), part: partName(target) })
       : t('quiz.revealed', { part: partName(target) });
-    const related = shuffled(category().questions.filter((q) => answerIds(q).includes(question.answer)))[0];
-    showResult(related ?? null);
+    // Single-answer clues only: a "Select the organs of…" prompt reads oddly here.
+    const related = shuffled(category().questions.filter((q) => q.answer === question.answer))[0];
+    showResult(related ?? null, true);
   }
 
   // Typed answers: case, accents, punctuation, word order, "the"/"of" and
@@ -771,7 +782,7 @@
     guessInput.disabled = false;
     guessInput.placeholder = t('run.' + run.mode + '.placeholder');
     q$('result').hidden = true;
-    q$('explain').hidden = q$('source').hidden = true;
+    q$('clue').hidden = q$('explain').hidden = q$('source').hidden = true;
     q$('reveal').textContent = t('run.giveUp');
     q$('reveal').hidden = false;
     submitBtn.hidden = true;

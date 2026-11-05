@@ -1,6 +1,6 @@
 """Build data/bodydata.js from the BodyParts3D 4.0 OBJ release.
 
-    python3 build/build_model.py <bp3d_dir> <hra_dir> data/bodydata.js
+    python3 build/build_model.py <bp3d_dir> <hra_dir> <za_obj_dir> data/bodydata.js
 
 <bp3d_dir> holds the DBCLS downloads, unzipped in place:
     isa_element_parts.txt, partof_element_parts.txt,
@@ -11,6 +11,10 @@
 https://cdn.humanatlas.io/digital-objects/ref-organ/uterus-female/latest/).
 They're placed with the transforms in hra_transforms.json (see fit_hra.py).
 The female skin is read from female_skin.npz (see fit_anny.py).
+
+<za_obj_dir> holds the Z-Anatomy objects named in ZANATOMY_TARGETS as OBJ
+files (see export_zanatomy.py), placed with zanatomy_transforms.json (see
+fit_zanatomy.py).
 
 Needs numpy and fast-simplification (pip install fast-simplification).
 
@@ -31,14 +35,19 @@ import fast_simplification
 import numpy as np
 
 import glb
-from parts_table import BAD_ELEMENTS, CONTEXT, HRA_TARGETS, MALE_ONLY, TARGETS
+from parts_table import (BAD_ELEMENTS, CONTEXT, HRA_TARGETS, MALE_ONLY, TARGETS,
+                         ZANATOMY_CARVE, ZANATOMY_TARGETS)
 
 ATTRIBUTION = ("BodyParts3D, (c) The Database Center for Life Science "
                "licensed under CC Attribution-Share Alike 2.1 Japan; "
                "female pelvis and organs adapted from the HuBMAP Human Reference Atlas "
                "3D Reference Object Library, licensed under CC Attribution 4.0; "
-               "female skin from the NAVER LABS Europe Anny body model (CC0 assets)")
+               "female skin from the NAVER LABS Europe Anny body model (CC0 assets); "
+               "further arteries, the external jugular vein, muscles, lung lobes, spinal cord, thyroid and coccyx adapted "
+               "from Z-Anatomy, licensed under "
+               "CC Attribution-Share Alike 4.0. This model: CC Attribution-Share Alike 4.0")
 TRANSFORMS = Path(__file__).with_name("hra_transforms.json")
+ZA_TRANSFORMS = Path(__file__).with_name("zanatomy_transforms.json")
 FEMALE_SKIN = Path(__file__).with_name("female_skin.npz")
 MIN_TRIS = 40  # floor per element so small bones survive decimation
 
@@ -97,6 +106,11 @@ def to_body_space(v):
     return np.stack([v[:, 0], v[:, 2], -v[:, 1]], axis=1) / 1000.0
 
 
+def za_to_body_space(v):
+    # Z-Anatomy (Blender): the BodyParts3D axes, but in metres.
+    return to_body_space(v * 1000.0)
+
+
 def decimate(meshes, budget):
     total = sum(len(f) for _, f in meshes)
     out_v, out_f, base = [], [], 0
@@ -115,6 +129,47 @@ def build_mesh(elements, files, budget):
     return to_body_space(v), f
 
 
+def carve(v, f, cover, dist):
+    """Drop the faces of (v, f) whose corners all lie within dist of a
+    vertex of cover, and the vertices left unused."""
+    near = np.array([np.sqrt(((cover - p) ** 2).sum(1)).min() < dist for p in v])
+    f = f[~near[f].all(1)]
+    used = np.unique(f)
+    remap = np.full(len(v), -1)
+    remap[used] = np.arange(len(used))
+    return v[used], remap[f]
+
+
+def placer(fits, region):
+    """The function placing points (body space) by a fitted region: a
+    similarity transform, or two of them mixed by height (see fit_zanatomy.py)."""
+    fit = fits[region]
+    if "blend" in fit:
+        lower, upper = (placer(fits, name) for name in fit["blend"])
+        def place(v):
+            w = np.clip((v[:, 1] - fit["from"]) / (fit["to"] - fit["from"]), 0, 1)[:, None]
+            return (1 - w) * lower(v) + w * upper(v)
+        return place
+    s, r, t = fit["scale"], np.array(fit["rotation"]), np.array(fit["translation"])
+    return lambda v: s * v @ r.T + t
+
+
+def build_za_mesh(za_dir, sources, budget, fits):
+    """Merge the Z-Anatomy objects, each placed on our body by its region and
+    cut off below its `min_y`, if any."""
+    meshes = []
+    for name, region, *min_y in sources:
+        v, f = read_obj(Path(za_dir) / f"{name}.obj")
+        v = placer(fits, region)(za_to_body_space(v))
+        if min_y:
+            f = f[(v[f][:, :, 1] >= min_y[0]).any(axis=1)]
+            used = np.unique(f)
+            v, f = v[used], np.searchsorted(used, f)
+        meshes.append((v, f))
+    v, f = decimate(meshes, budget)
+    return v, f, [f"z-anatomy:{name}" for name, *_ in sources]
+
+
 def build_hra_mesh(hra_dir, sources, budget, fit):
     """Merge the GLB nodes whose names match, then place them on our body."""
     nodes = [(name, v, f) for file, pattern in sources
@@ -129,9 +184,10 @@ def b64(arr):
     return base64.b64encode(np.ascontiguousarray(arr).tobytes()).decode()
 
 
-def build_parts(root, hra_dir, female_skin=True):
+def build_parts(root, hra_dir, za_dir=None, female_skin=True):
     """Every part of both bodies, decimated, in body space (before centring):
-    a list of (id, system, kind, sex, elements, verts, faces)."""
+    a list of (id, system, kind, sex, elements, verts, faces). Without
+    za_dir, the Z-Anatomy arteries are left out."""
     root = Path(root)
     concepts = load_tables(root)
     files, names = index_elements(root)
@@ -150,6 +206,28 @@ def build_parts(root, hra_dir, female_skin=True):
             built.append((pid, system, kind, "male" if pid in male else None, elements, v, f))
             print(f"{pid:20s} {len(elements):4d} elements {len(f):6d} tris")
 
+    # Z-Anatomy parts: new ones, or additions to a BodyParts3D one. A new part
+    # the female body gets from the HRA instead (the coccyx) is male-only.
+    za_fits = json.loads(ZA_TRANSFORMS.read_text())
+    for pid, system, budget, sources in ZANATOMY_TARGETS if za_dir else []:
+        v, f, objects = build_za_mesh(za_dir, sources, budget, za_fits)
+        old = next((i for i, b in enumerate(built) if b[0] == pid), None)
+        if old is None:
+            built.append((pid, system, "target", "male" if pid in male else None, objects, v, f))
+        else:
+            _, _, kind, sex, elements, ov, of = built[old]
+            built[old] = (pid, system, kind, sex, sorted(elements) + objects,
+                          np.concatenate([ov, v]), np.concatenate([of, f + len(ov)]))
+        print(f"{pid:20s} {len(objects):4d} Z-Anatomy objects {len(f):5d} tris"
+              + ("" if old is None else " (added)"))
+        if pid in ZANATOMY_CARVE:
+            host, dist = ZANATOMY_CARVE[pid]
+            i = next(i for i, b in enumerate(built) if b[0] == host)
+            hid, hsys, hkind, hsex, helems, hv, hf = built[i]
+            cv, cf = carve(hv, hf, v, dist)
+            built[i] = (hid, hsys, hkind, hsex, helems, cv, cf)
+            print(f"{host:20s} carved {len(hf) - len(cf)} tris under {pid}")
+
     fits = json.loads(TRANSFORMS.read_text())
     for pid, system, budget, region, sources in HRA_TARGETS:
         v, f, nodes = build_hra_mesh(hra_dir, sources, budget, fits[region])
@@ -165,8 +243,8 @@ def build_parts(root, hra_dir, female_skin=True):
     return built
 
 
-def main(root, hra_dir, out):
-    built = build_parts(root, hra_dir)
+def main(root, hra_dir, za_dir, out):
+    built = build_parts(root, hra_dir, za_dir)
     allv = np.concatenate([b[5] for b in built])
     lo, hi = allv.min(axis=0), allv.max(axis=0)
     center = np.array([(lo[0] + hi[0]) / 2, lo[1], (lo[2] + hi[2]) / 2])
@@ -192,4 +270,4 @@ def main(root, hra_dir, out):
 
 
 if __name__ == "__main__":
-    main(*sys.argv[1:4])
+    main(*sys.argv[1:5])

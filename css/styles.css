@@ -44,6 +44,7 @@ footer { padding: .3rem 1rem; font-size: 11px; color: #6b7079;
 .quiz-verdict { margin: 0 0 .3rem; font-weight: 600; }
 .quiz-verdict.right { color: #4cd38a; }
 .quiz-verdict.wrong { color: #ff6b6b; }
+.quiz-clue { margin: 0 0 .3rem; color: #c9c6bf; font-style: italic; }
 .quiz-explain { margin: 0 0 .3rem; color: #c9c6bf; }
 .quiz-source { font-size: 12px; color: #6fb7e6; }
 .quiz-actions { display: flex; justify-content: flex-end; gap: .4rem; margin-top: .6rem; }
