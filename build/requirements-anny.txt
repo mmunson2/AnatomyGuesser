@@ -1,0 +1,5 @@
+# Only build/fit_anny.py needs these (~1 GB). `make setup-anny` installs them.
+# Not the anny[smpl] extra: its assets are non-commercial.
+-r requirements.txt
+torch==2.15.0
+anny==0.6.2

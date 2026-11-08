@@ -23,6 +23,7 @@ saved transforms and doesn't need scipy.
 
 import json
 import sys
+from functools import cache
 from pathlib import Path
 
 import numpy as np
@@ -47,9 +48,14 @@ def surface_points(meshes, n=SAMPLES):
     return pick[:, 0] + a * (pick[:, 1] - pick[:, 0]) + b * (pick[:, 2] - pick[:, 0])
 
 
+@cache
+def source_index(root):
+    """(concepts, files, names) for a BodyParts3D directory, read once."""
+    return load_tables(root), *index_elements(root)
+
+
 def ours(root, selectors):
-    concepts = load_tables(root)
-    files, names = index_elements(root)
+    concepts, files, names = source_index(Path(root))
     elements = resolve(selectors, concepts, names) & files.keys()
     meshes = [read_obj(files[fj]) for fj in sorted(elements)]
     return to_body_space(surface_points(meshes))
@@ -142,4 +148,6 @@ def main(root, hra_dir):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        sys.exit("usage: python3 build/fit_hra.py <bp3d_dir> <hra_dir>")
     main(*sys.argv[1:3])

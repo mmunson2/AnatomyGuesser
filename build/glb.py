@@ -39,7 +39,8 @@ def _local(node):
 
 def load(path):
     """Return list of (node_name, verts Nx3 float64, faces Mx3 int64) in world space."""
-    data = open(path, "rb").read()
+    with open(path, "rb") as f:
+        data = f.read()
     magic, _, _ = struct.unpack_from("<4sII", data, 0)
     assert magic == b"glTF", path
     off, gl, binc = 12, None, b""

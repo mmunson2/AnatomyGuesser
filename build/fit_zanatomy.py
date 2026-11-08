@@ -77,4 +77,6 @@ def main(root, obj_dir):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        sys.exit("usage: python3 build/fit_zanatomy.py <bp3d_dir> <za_obj_dir>")
     main(*sys.argv[1:3])

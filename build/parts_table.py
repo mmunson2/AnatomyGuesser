@@ -294,24 +294,24 @@ ZANATOMY_TARGETS = [
      [("Left common carotid artery", "head_neck", 1.365),
       ("Right common carotid artery", "head_neck", 1.365)]),
     ("internal_carotid", "cardiovascular", ARTERY,
-     [("Internal carotid artery.l", "head_neck"), ("Internal carotid artery.r", "head_neck")]),
+     za_pair("Internal carotid artery", "head_neck")),
     ("external_carotid", "cardiovascular", ARTERY,
-     [("External carotid artery.l", "head_neck"), ("External carotid artery.r", "head_neck")]),
+     za_pair("External carotid artery", "head_neck")),
     ("facial_artery", "cardiovascular", ARTERY,
-     [("Facial artery.l", "head_neck"), ("Facial artery.r", "head_neck")]),
+     za_pair("Facial artery", "head_neck")),
     # The transverse facial artery is a branch of the superficial temporal.
     ("superficial_temporal_artery", "cardiovascular", ARTERY,
      [(f"{name}.{side}", "head_neck") for side in "lr" for name in (
          "Superficial temporal artery", "Frontal branch of superficial temporal artery",
          "Transverse facial artery")]),
     ("maxillary_artery", "cardiovascular", ARTERY,
-     [("Maxillary artery.l", "head_neck"), ("Maxillary artery.r", "head_neck")]),
+     za_pair("Maxillary artery", "head_neck")),
     ("occipital_artery", "cardiovascular", ARTERY,
-     [("Occipital artery.l", "head_neck"), ("Occipital artery.r", "head_neck")]),
+     za_pair("Occipital artery", "head_neck")),
     ("fibular_artery", "cardiovascular", ARTERY,
      [("Fibular artery.l", "leg_left"), ("Fibular artery.r", "leg_right")]),
     ("external_jugular_vein", "cardiovascular", ARTERY,
-     [("External jugular vein.l", "head_neck"), ("External jugular vein.r", "head_neck")]),
+     za_pair("External jugular vein", "head_neck")),
 
     # Our lungs are only airway and vessel trees; Z-Anatomy's lobes give them
     # a surface. Z-Anatomy draws the cord as a cross-section arrayed along a

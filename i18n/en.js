@@ -81,7 +81,7 @@ window.I18N = {
   'group.organs.tip': 'The organs of the brain and spinal cord, neck, chest, abdomen and pelvis',
   'group.organs.items': 'organs',
   'group.vessels': 'Blood vessels',
-  'group.vessels.tip': 'The aorta, venae cavae and major arteries',
+  'group.vessels.tip': 'The aorta, venae cavae and the major arteries and veins',
   'group.vessels.items': 'blood vessels',
   'run.name.title': 'Name all',
   'run.find.title': 'Find all',

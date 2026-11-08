@@ -2,8 +2,8 @@
 
     python3 build/fit_anny.py <bp3d_dir> <hra_dir>
 
-Needs torch, anny, scipy, trimesh and rtree (pip install anny trimesh rtree
-scipy; not the anny[smpl] extra, whose assets are non-commercial). Rerun it
+Needs torch, anny, scipy, trimesh and rtree (`make setup-anny`;
+not the anny[smpl] extra, whose assets are non-commercial). Rerun it
 when the female body's anatomy changes; build_model.py only reads the
 saved mesh.
 
@@ -284,5 +284,7 @@ def main(root, hra_dir):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        sys.exit("usage: python3 build/fit_anny.py <bp3d_dir> <hra_dir>")
     torch.manual_seed(0)
     main(*sys.argv[1:3])

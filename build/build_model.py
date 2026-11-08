@@ -16,7 +16,7 @@ The female skin is read from female_skin.npz (see fit_anny.py).
 files (see export_zanatomy.py), placed with zanatomy_transforms.json (see
 fit_zanatomy.py).
 
-Needs numpy and fast-simplification (pip install fast-simplification).
+Needs numpy and fast-simplification (`make setup`; `make model` runs this).
 
 Every target in parts_table.py becomes one merged mesh, decimated to its
 triangle budget. Parts only one body has carry "sex": "male" or "female";
@@ -29,6 +29,7 @@ import base64
 import json
 import re
 import sys
+from collections import namedtuple
 from pathlib import Path
 
 import fast_simplification
@@ -50,6 +51,10 @@ TRANSFORMS = Path(__file__).with_name("hra_transforms.json")
 ZA_TRANSFORMS = Path(__file__).with_name("zanatomy_transforms.json")
 FEMALE_SKIN = Path(__file__).with_name("female_skin.npz")
 MIN_TRIS = 40  # floor per element so small bones survive decimation
+
+# One built part. sex: None (both bodies), "male" or "female". elements: the
+# source FJ ids, Z-Anatomy objects or HRA nodes it was made from.
+Part = namedtuple("Part", "id system kind sex elements verts faces")
 
 
 def load_tables(root):
@@ -85,6 +90,18 @@ def resolve(selectors, concepts, names):
         else:
             found |= concepts.get(sel, set())
     return found
+
+
+def claim_elements(concepts, files, names):
+    """{part id: (kind, system, budget, elements)} for the TARGETS then the
+    CONTEXT parts, each element going to the first part that selects it."""
+    claimed, out = set(BAD_ELEMENTS), {}
+    for kind, table in (("target", TARGETS), ("context", CONTEXT)):
+        for pid, system, budget, selectors in table:
+            elements = (resolve(selectors, concepts, names) & files.keys()) - claimed
+            claimed |= elements
+            out[pid] = (kind, system, budget, elements)
+    return out
 
 
 def read_obj(path):
@@ -186,66 +203,62 @@ def b64(arr):
 
 def build_parts(root, hra_dir, za_dir=None, female_skin=True):
     """Every part of both bodies, decimated, in body space (before centring):
-    a list of (id, system, kind, sex, elements, verts, faces). Without
-    za_dir, the Z-Anatomy arteries are left out."""
+    a list of Part. Without za_dir, the Z-Anatomy parts are left out."""
     root = Path(root)
     concepts = load_tables(root)
     files, names = index_elements(root)
 
     # A BodyParts3D part the female body replaces, or lacks, is male-only.
     male = MALE_ONLY | {pid for pid, *_ in HRA_TARGETS}
-    claimed, built = set(BAD_ELEMENTS), []
-    for kind, table in (("target", TARGETS), ("context", CONTEXT)):
-        for pid, system, budget, selectors in table:
-            elements = (resolve(selectors, concepts, names) & files.keys()) - claimed
-            if not elements:
-                print(f"WARNING: {pid}: no elements", file=sys.stderr)
-                continue
-            claimed |= elements
-            v, f = build_mesh(elements, files, budget)
-            built.append((pid, system, kind, "male" if pid in male else None, elements, v, f))
-            print(f"{pid:20s} {len(elements):4d} elements {len(f):6d} tris")
+    built = []
+    for pid, (kind, system, budget, elements) in claim_elements(concepts, files, names).items():
+        if not elements:
+            print(f"WARNING: {pid}: no elements", file=sys.stderr)
+            continue
+        v, f = build_mesh(elements, files, budget)
+        built.append(Part(pid, system, kind, "male" if pid in male else None, elements, v, f))
+        print(f"{pid:20s} {len(elements):4d} elements {len(f):6d} tris")
 
     # Z-Anatomy parts: new ones, or additions to a BodyParts3D one. A new part
     # the female body gets from the HRA instead (the coccyx) is male-only.
     za_fits = json.loads(ZA_TRANSFORMS.read_text())
     for pid, system, budget, sources in ZANATOMY_TARGETS if za_dir else []:
         v, f, objects = build_za_mesh(za_dir, sources, budget, za_fits)
-        old = next((i for i, b in enumerate(built) if b[0] == pid), None)
+        old = next((i for i, b in enumerate(built) if b.id == pid), None)
         if old is None:
-            built.append((pid, system, "target", "male" if pid in male else None, objects, v, f))
+            built.append(Part(pid, system, "target", "male" if pid in male else None, objects, v, f))
         else:
-            _, _, kind, sex, elements, ov, of = built[old]
-            built[old] = (pid, system, kind, sex, sorted(elements) + objects,
-                          np.concatenate([ov, v]), np.concatenate([of, f + len(ov)]))
+            b = built[old]
+            built[old] = b._replace(elements=sorted(b.elements) + objects,
+                                    verts=np.concatenate([b.verts, v]),
+                                    faces=np.concatenate([b.faces, f + len(b.verts)]))
         print(f"{pid:20s} {len(objects):4d} Z-Anatomy objects {len(f):5d} tris"
               + ("" if old is None else " (added)"))
         if pid in ZANATOMY_CARVE:
             host, dist = ZANATOMY_CARVE[pid]
-            i = next(i for i, b in enumerate(built) if b[0] == host)
-            hid, hsys, hkind, hsex, helems, hv, hf = built[i]
-            cv, cf = carve(hv, hf, v, dist)
-            built[i] = (hid, hsys, hkind, hsex, helems, cv, cf)
-            print(f"{host:20s} carved {len(hf) - len(cf)} tris under {pid}")
+            i = next(i for i, b in enumerate(built) if b.id == host)
+            cv, cf = carve(built[i].verts, built[i].faces, v, dist)
+            print(f"{host:20s} carved {len(built[i].faces) - len(cf)} tris under {pid}")
+            built[i] = built[i]._replace(verts=cv, faces=cf)
 
     fits = json.loads(TRANSFORMS.read_text())
     for pid, system, budget, region, sources in HRA_TARGETS:
         v, f, nodes = build_hra_mesh(hra_dir, sources, budget, fits[region])
-        built.append((pid, system, "target", "female", nodes, v, f))
+        built.append(Part(pid, system, "target", "female", nodes, v, f))
         print(f"{pid:20s} {len(nodes):4d} HRA nodes {len(f):5d} tris (female)")
 
     if female_skin:
         skin = np.load(FEMALE_SKIN)
         budget = next(b for pid, _, b, _ in CONTEXT if pid == "skin")
         v, f = decimate([(skin["vertices"], skin["faces"])], budget)
-        built.append(("skin", "integumentary", "context", "female", ["anny"], v, f))
+        built.append(Part("skin", "integumentary", "context", "female", ["anny"], v, f))
         print(f"{'skin':20s}    Anny       {len(f):5d} tris (female)")
     return built
 
 
 def main(root, hra_dir, za_dir, out):
     built = build_parts(root, hra_dir, za_dir)
-    allv = np.concatenate([b[5] for b in built])
+    allv = np.concatenate([b.verts for b in built])
     lo, hi = allv.min(axis=0), allv.max(axis=0)
     center = np.array([(lo[0] + hi[0]) / 2, lo[1], (lo[2] + hi[2]) / 2])
     lo, hi = lo - center, hi - center
@@ -265,9 +278,11 @@ def main(root, hra_dir, za_dir, out):
             "scale": scale.tolist(), "parts": parts}
     Path(out).write_text("// Generated by build/build_model.py - do not edit by hand.\n"
                          f"window.BODY_DATA = {json.dumps(data, separators=(',', ':'))};\n")
-    tris = sum(len(b[6]) for b in built)
+    tris = sum(len(b.faces) for b in built)
     print(f"\n{len(built)} parts, {tris} tris, {Path(out).stat().st_size / 1e6:.1f} MB -> {out}")
 
 
 if __name__ == "__main__":
+    if len(sys.argv) != 5:
+        sys.exit(__doc__.split("\n\n")[1])
     main(*sys.argv[1:5])

@@ -1,4 +1,5 @@
-// Prototype viewer for the BodyParts3D model in data/bodydata.js.
+// The whole app: the 3D body (data/bodydata.js), hiding, the quiz, the
+// timed name all / find all runs and the start and done screens.
 (function () {
   // t('quiz.wrong', { part: 'Liver' }) fills {part} placeholders.
   const t = (key, vars = {}) => (I18N[key] ?? key).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
@@ -353,8 +354,6 @@
     return shuffled(settings.count ? pool.slice(0, settings.count) : pool);
   }
 
-  // Each question starts from the full body: anything hidden (structures or
-  // whole systems) comes back, as with Unhide all.
   // What to call the part in a "name it" prompt: bone, muscle or vessel by
   // system, else organ, with a few exceptions.
   const KIND_OVERRIDES = { costal_cartilage: 'cartilage', heart: 'organ' };
@@ -375,6 +374,8 @@
   const namePrompt = (pid) =>
     t('quiz.namePrompt.' + structureKind(pid) + (MANY.has(pid) ? '.many' : ''));
 
+  // Each question starts from the full body: anything hidden (structures or
+  // whole systems) comes back, as with Unhide all.
   function nextQuestion() {
     clearMarks();
     unhideAll();
@@ -606,7 +607,10 @@
     box.replaceChildren(...counts.map((n) =>
       choice('count', n, n ? String(n) : t('start.countAll', { n: available }), false)));
     const pick = counts.includes(chosen) ? chosen : 0;
-    box.querySelector(`input[value="${pick}"]`).checked = true;
+    // No questions at all (none of the category's parts in this body): no
+    // choices, and nothing to start.
+    if (available) box.querySelector(`input[value="${pick}"]`).checked = true;
+    document.getElementById('start-go').disabled = !available;
   }
   // Male/female toggle, bottom right of the stage. It stays usable over the
   // start screen (the body switches behind it) and in name all, which asks
@@ -939,4 +943,17 @@
 
   renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
   showStart();
+
+  // For tools/check.py and tools/shot.py, which drive the page headless.
+  // Not used by the app itself.
+  window.ANATOMY_DEBUG = {
+    THREE, renderer, camera, controls, nameKey, structureKind, MANY, settings,
+    meshes: () => meshes, allMeshes, meshById: () => meshById,
+    showBody, explore, select: (id) => select(meshById[id] ?? null),
+    solo: (systems) => {
+      unhideAll();
+      hide(meshes.filter((m) => !systems.includes(m.userData.part.system)));
+    },
+    hide: (ids) => hide(ids.map((id) => meshById[id]).filter(Boolean)),
+  };
 })();
