@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title data-t="cards.title"></title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="cards">
+<header class="bar">
+  <h1 data-t="cards.title"></h1>
+</header>
+<main>
+  <form class="modal-card" id="start-form">
+    <p class="modal-intro" data-t="cards.intro"></p>
+    <fieldset>
+      <legend data-t="start.count"></legend>
+      <div class="choices" id="start-counts"></div>
+    </fieldset>
+    <div class="modal-actions">
+      <a class="cards-viewer" href="index.html?viewer" data-t="cards.viewer"></a>
+      <button type="submit" class="primary" id="start-go" data-t="start.go"></button>
+    </div>
+  </form>
+  <section class="quiz" id="quiz" hidden>
+    <div class="quiz-head">
+      <span class="quiz-topic" id="quiz-topic"></span>
+      <span class="quiz-progress" id="quiz-progress"></span>
+    </div>
+    <p class="quiz-prompt" id="quiz-prompt"></p>
+    <form class="quiz-guess" id="quiz-guess-form" autocomplete="off">
+      <input id="quiz-guess" type="text" autocomplete="off" autocorrect="off"
+             autocapitalize="off" spellcheck="false"
+             data-t-placeholder="quiz.textPlaceholder" data-t-aria-label="cards.answerLabel">
+    </form>
+    <div class="quiz-result" id="quiz-result" hidden>
+      <p class="quiz-verdict" id="quiz-verdict"></p>
+      <ul class="quiz-keys" id="quiz-keys" hidden></ul>
+      <p class="quiz-answer" id="quiz-answer"></p>
+      <p class="quiz-explain" id="quiz-explain"></p>
+      <a class="quiz-source" id="quiz-source" target="_blank" rel="noopener"></a>
+    </div>
+    <div class="quiz-actions">
+      <button type="button" id="quiz-quit" class="quiz-quit" data-t="quiz.quit"></button>
+      <button type="button" id="quiz-override" data-t="quiz.override"
+              data-t-title="quiz.overrideTip" hidden></button>
+      <button type="button" id="quiz-reveal" data-t="quiz.reveal"></button>
+      <button type="button" id="quiz-submit" data-t="quiz.submit" disabled></button>
+      <button type="button" id="quiz-next" data-t="quiz.next" hidden></button>
+    </div>
+  </section>
+  <section class="modal-card" id="done" hidden>
+    <h2 data-t="done.title"></h2>
+    <p class="done-score" id="done-score"></p>
+    <ul class="done-topics" id="done-topics"></ul>
+    <ol class="done-list" id="done-list"></ol>
+    <div class="modal-actions">
+      <button type="button" class="primary" id="done-again" data-t="done.again"></button>
+    </div>
+  </section>
+</main>
+<script src="i18n/en.js"></script>
+<script src="i18n/questions.en.js"></script>
+<script src="js/grade.js"></script>
+<script src="js/cards.js"></script>
+</body>
+</html>

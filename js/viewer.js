@@ -335,10 +335,14 @@
   // Two kinds of question, half and half: clues from i18n/questions.en.js
   // ("find it": pick the part), and "name it" questions made here for every
   // target part, where the part is highlighted and the player types its name.
+  // A category with `named: false` (Entrance Exam) asks only its own
+  // questions, which include typed `text` ones that need no part.
   const guessInput = q$('guess');
   function questionPool() {
-    const clues = shuffled(category().questions.filter((q) =>
-      answerIds(q).every((id) => meshById[id] && inCategory(id))));
+    const clues = shuffled(category().questions.filter((q) => (q.type === 'text'
+      ? !q.show || meshById[q.show]
+      : answerIds(q).every((id) => meshById[id] && inCategory(id)))));
+    if (category().named === false) return clues;
     // Vessels are too thin to spot through the x-rayed body, so their
     // questions show the cardiovascular system alone.
     const named = shuffled(categoryMeshes().map((m) => m.userData.part.id).map((id) => ({
@@ -383,18 +387,21 @@
     asked++;
     answered = false;
     q$('progress').textContent = t('quiz.progress', { n: asked, total: asked + deck.length });
-    const naming = question.type === 'name';
+    const naming = question.type === 'name', typing = naming || question.type === 'text';
     // One undoable hide, so Undo or Unhide all brings the rest back.
     const focus = [].concat(question.focus ?? []);
     if (focus.length) hide(meshes.filter((m) => !focus.includes(m.userData.part.system)));
-    if (naming) {
-      mark(meshById[question.answer], HIGHLIGHT);
+    const shown = naming ? question.answer : question.show;
+    if (shown) {
+      mark(meshById[shown], HIGHLIGHT);
       xray(true);
     }
     q$('topic').textContent = t('quiz.topic.' + question.topic);
-    q$('prompt').textContent = naming ? namePrompt(question.answer) : question.prompt;
+    q$('prompt').textContent = questionText(question);
     q$('hint').hidden = !question.answers;
-    q$('guess-form').hidden = !naming;
+    q$('guess-form').hidden = !typing;
+    q$('override').hidden = q$('keys').hidden = q$('answer').hidden = true;
+    guessInput.placeholder = t(question.type === 'text' ? 'quiz.textPlaceholder' : 'quiz.guessPlaceholder');
     guessInput.value = '';
     guessInput.disabled = false;
     submitBtn.disabled = true;
@@ -402,8 +409,11 @@
     q$('reveal').hidden = false;
     submitBtn.hidden = false;
     q$('next').hidden = true;
-    if (naming) guessInput.focus();
+    if (typing) guessInput.focus();
   }
+  // Generated name questions have no prompt of their own; written ones
+  // (Entrance Exam) do.
+  const questionText = (q) => q.prompt ?? namePrompt(q.answer);
 
   // A question has one `answer`, or several `answers` (all must be picked)
   // plus `also`: parts that are fine to pick but not required.
@@ -454,8 +464,8 @@
   function showResult(about, withClue = false) {
     q$('clue').textContent = withClue && about ? about.prompt : '';
     q$('clue').hidden = !(withClue && about);
-    q$('explain').textContent = about ? about.explain : '';
-    q$('explain').hidden = !about;
+    q$('explain').textContent = about?.explain ?? '';
+    q$('explain').hidden = !about?.explain;
     q$('source').hidden = !about;
     if (about) {
       const src = SOURCES[about.source];
@@ -486,10 +496,48 @@
     verdict.textContent = right ? t('quiz.correct', { part: partName(target) })
       : guess !== null ? t('quiz.nameWrong', { guess: guess.trim(), part: partName(target) })
       : t('quiz.revealed', { part: partName(target) });
-    // Single-answer clues only: a "Select the organs of…" prompt reads oddly here.
+    // A written name question explains itself. Otherwise single-answer clues
+    // only: a "Select the organs of…" prompt reads oddly here.
+    if (question.prompt) { showResult(question); return; }
     const related = shuffled(category().questions.filter((q) => q.answer === question.answer))[0];
     showResult(related ?? null, true);
   }
+
+  // Text questions (js/grade.js): guess is the typed text, or null when they
+  // gave up. Each idea in `keys` shows as found or missing, then the model
+  // answer. A wrong verdict can be overruled with "I was right", since
+  // keyword matching misses answers worded another way.
+  function finishText(guess) {
+    answered = true;
+    const result = guess === null ? null : GRADE.grade(question, guess);
+    const right = !!result?.right;
+    history.push({ question, right, given: guess && guess.trim(), answer: question.answer });
+    const verdict = q$('verdict');
+    verdict.className = 'quiz-verdict ' + (right ? 'right' : 'wrong');
+    verdict.textContent = !result ? t('quiz.textRevealed')
+      : right ? t('quiz.textCorrect')
+      : result.forbidden.length ? t('quiz.textForbidden', { words: result.forbidden.join(', ') })
+      : t('quiz.textMissing', { n: result.missed.length });
+    q$('keys').replaceChildren(...(result ? question.keys.map((idea, i) => {
+      const li = document.createElement('li');
+      li.className = result.hit.includes(i) ? 'right' : 'wrong';
+      li.textContent = (result.hit.includes(i) ? '✓ ' : '✗ ') + idea[0];
+      return li;
+    }) : []));
+    q$('keys').hidden = !result;
+    q$('answer').textContent = t('quiz.textAnswer', { answer: question.answer });
+    q$('answer').hidden = false;
+    q$('override').hidden = !result || right;
+    showResult(question);
+  }
+  q$('override').addEventListener('click', () => {
+    history[history.length - 1].right = true;
+    history[history.length - 1].overruled = true;
+    q$('verdict').className = 'quiz-verdict right';
+    q$('verdict').textContent = t('quiz.textOverruled');
+    q$('override').hidden = true;
+    q$('next').focus();
+  });
 
   // Typed answers: case, accents, punctuation, word order, "the"/"of" and
   // plural -s don't matter, and the display name or any `alias.<id>` counts.
@@ -506,17 +554,7 @@
     const aliases = I18N['alias.' + id] ? I18N['alias.' + id].split('|') : [];
     return [id, [t('part.' + id), ...aliases].map(nameKey)];
   }));
-  function distance(a, b) {
-    let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
-    for (let i = 1; i <= a.length; i++) {
-      const row = [i];
-      for (let j = 1; j <= b.length; j++) {
-        row[j] = Math.min(prev[j] + 1, row[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-      }
-      prev = row;
-    }
-    return prev[b.length];
-  }
+  const distance = GRADE.distance;
   function nameMatches(guess, id) {
     const key = nameKey(guess);
     if (!key) return false;
@@ -530,8 +568,8 @@
   function submit() {
     if (run) { runGuess(true); return; }
     if (!quizOn || answered) return;
-    if (question.type === 'name') {
-      if (guessInput.value.trim()) finishName(guessInput.value);
+    if (question.type === 'name' || question.type === 'text') {
+      if (guessInput.value.trim()) (question.type === 'name' ? finishName : finishText)(guessInput.value);
       return;
     }
     if (!selection.length) return;
@@ -706,11 +744,12 @@
       li.className = h.right ? 'right' : 'wrong';
       const prompt = document.createElement('p');
       prompt.className = 'done-prompt';
-      prompt.textContent = t('done.number', { n: i + 1 }) + ' ' + (h.question.type === 'name'
-        ? namePrompt(h.question.answer) : h.question.prompt);
+      prompt.textContent = t('done.number', { n: i + 1 }) + ' ' + questionText(h.question);
       const detail = document.createElement('p');
       detail.className = 'done-detail';
-      detail.textContent = h.right ? t('done.right', { answer: h.answer })
+      detail.textContent = h.overruled ? t('done.overruled', { given: h.given, answer: h.answer })
+        : h.right && h.question.type === 'text' ? t('done.rightText', { given: h.given, answer: h.answer })
+        : h.right ? t('done.right', { answer: h.answer })
         : h.given ? t('done.wrong', { given: h.given, answer: h.answer })
         : t('done.revealed', { answer: h.answer });
       li.append(prompt, detail);
@@ -726,7 +765,9 @@
     if (run) { endRun('gaveUp'); return; }
     if (answered) return;
     select(null);
-    if (question.type === 'name') finishName(null); else finish(null);
+    if (question.type === 'name') finishName(null);
+    else if (question.type === 'text') finishText(null);
+    else finish(null);
   });
   submitBtn.addEventListener('click', submit);
   q$('guess-form').addEventListener('submit', (e) => { e.preventDefault(); submit(); });
@@ -947,9 +988,9 @@
   // For tools/check.py and tools/shot.py, which drive the page headless.
   // Not used by the app itself.
   window.ANATOMY_DEBUG = {
-    THREE, renderer, camera, controls, nameKey, structureKind, MANY, settings,
+    THREE, renderer, camera, controls, nameKey, GRADE, structureKind, MANY, settings,
     meshes: () => meshes, allMeshes, meshById: () => meshById,
-    showBody, explore, select: (id) => select(meshById[id] ?? null),
+    showBody, explore, question: () => question, select: (id) => select(meshById[id] ?? null),
     solo: (systems) => {
       unhideAll();
       hide(meshes.filter((m) => !systems.includes(m.userData.part.system)));

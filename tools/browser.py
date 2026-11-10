@@ -9,6 +9,12 @@ from playwright.sync_api import sync_playwright
 from paths import INDEX_HTML
 
 
+# A phone, for the notecards page (cards.html), where index.html sends phones.
+PHONE = {"user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 "
+                       "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+         "viewport": {"width": 390, "height": 844}, "is_mobile": True, "has_touch": True}
+
+
 @contextmanager
 def app(width=1400, height=900):
     with sync_playwright() as p:

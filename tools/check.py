@@ -4,8 +4,9 @@ real page (headless Chrome).
     make check                # errors and warnings; exits 1 on any error
     make check ARGS=--gaps    # also list parts without a clue or aliases
 
-Errors: page errors on load; a question whose answer, `also` or `focus`
-names no part or system, or whose `source` or `topic` doesn't exist;
+Errors: page errors on load; a question whose answer, `also`, `show` or
+`focus` names no part or system; a text question whose own answer fails
+its keys, or whose `tests` don't pass or fail as listed; or whose `source` or `topic` doesn't exist;
 duplicate question ids; a target part with no `part.<id>` name; an i18n key
 the page uses but en.js lacks; two parts sharing a typed name or alias (the
 typed answer would be ambiguous).
@@ -16,7 +17,7 @@ group asks for; i18n part/alias keys for parts that don't exist.
 import re
 import sys
 
-from browser import app
+from browser import PHONE, app
 from paths import INDEX_HTML, ROOT
 
 # Overlay names js/viewer.js knows (its `overlays`).
@@ -30,6 +31,23 @@ CHECKS = r"""(OVERLAYS) => {
   const bodiesOf = (id) => [...new Set(parts.filter((p) => p.id === id).map((p) => p.sex ?? 'both'))];
   const exists = (id) => targets.includes(id);
 
+  // Text questions: keys well formed, the model answer passes its own
+  // grader, and the optional `tests` pass or fail as they say.
+  function checkText(q, where) {
+    if (typeof q.answer !== 'string') errors.push(`${where}: text answer must be the model answer`);
+    if (!Array.isArray(q.keys) || !q.keys.length || q.keys.some((k) => !Array.isArray(k) || !k.length
+        || k.some((w) => typeof w !== 'string' || !D.GRADE.tokens(w).length)))
+      { errors.push(`${where}: keys must be non-empty lists of words`); return; }
+    if (q.need && q.need > q.keys.length) errors.push(`${where}: need ${q.need} > ${q.keys.length} keys`);
+    if (q.show && !exists(q.show)) errors.push(`${where}: no target part "${q.show}" to show`);
+    if (typeof q.answer === 'string' && !D.GRADE.grade(q, q.answer).right)
+      errors.push(`${where}: its own answer doesn't pass: ${JSON.stringify(D.GRADE.grade(q, q.answer))}`);
+    for (const text of q.tests?.pass ?? [])
+      if (!D.GRADE.grade(q, text).right) errors.push(`${where}: test should pass: "${text}"`);
+    for (const text of q.tests?.fail ?? [])
+      if (D.GRADE.grade(q, text).right) errors.push(`${where}: test should fail: "${text}"`);
+  }
+
   // Questions.
   const seen = new Map(), clued = new Map();
   for (const cat of CATEGORIES) {
@@ -38,16 +56,22 @@ CHECKS = r"""(OVERLAYS) => {
       const where = `${cat.id}/${q.id}`;
       if (seen.has(q.id)) errors.push(`${where}: id also used in ${seen.get(q.id)}`);
       seen.set(q.id, cat.id);
-      const answers = q.answers ?? [q.answer];
-      for (const id of [...answers, ...(q.also ?? [])])
-        if (!exists(id)) errors.push(`${where}: no target part "${id}"`);
+      if (q.type === 'text') {
+        checkText(q, where);
+      } else {
+        const answers = q.answers ?? [q.answer];
+        for (const id of [...answers, ...(q.also ?? [])])
+          if (!exists(id)) errors.push(`${where}: no target part "${id}"`);
+      }
+      const answers = q.type === 'text' ? [] : q.answers ?? [q.answer];
       if (q.answer && q.answers) errors.push(`${where}: has both answer and answers`);
       for (const s of [].concat(q.focus ?? []))
         if (!systems.has(s)) errors.push(`${where}: focus "${s}" is not a system`);
       if (q.overlay && !OVERLAYS.includes(q.overlay)) errors.push(`${where}: unknown overlay "${q.overlay}"`);
       if (!SOURCES[q.source]) errors.push(`${where}: unknown source "${q.source}"`);
       if (!I18N['quiz.topic.' + q.topic]) errors.push(`${where}: no quiz.topic.${q.topic} in en.js`);
-      if (!q.prompt || !q.explain) errors.push(`${where}: missing prompt or explain`);
+      if (!q.prompt || (!q.explain && q.type !== 'text')) errors.push(`${where}: missing prompt or explain`);
+      if (q.type && !['text', 'name'].includes(q.type)) errors.push(`${where}: unknown type "${q.type}"`);
       if (q.url && !/^https:\/\//.test(q.url)) warnings.push(`${where}: url isn't https: ${q.url}`);
       if (kinds) {
         for (const id of answers)
@@ -108,16 +132,16 @@ CHECKS = r"""(OVERLAYS) => {
 
 
 def static_keys():
-    """i18n keys named literally in index.html and js/viewer.js."""
-    html = INDEX_HTML.read_text()
-    js = (ROOT / "js" / "viewer.js").read_text()
+    """i18n keys named literally in the pages and their scripts."""
+    html = INDEX_HTML.read_text() + (ROOT / "cards.html").read_text()
+    js = (ROOT / "js" / "viewer.js").read_text() + (ROOT / "js" / "cards.js").read_text()
     keys = set(re.findall(r'data-t(?:-[a-z-]+)?="([^"]+)"', html))
     keys |= set(re.findall(r"\bt\('([^'{}+]+)'[,)]", js))
     return keys
 
 
 def choose(page, name, value):
-    page.click(f"input[name={name}][value={value}] + span")
+    page.click(f'input[name={name}][value="{value}"] + span')
 
 
 def play(page):
@@ -138,7 +162,7 @@ def play(page):
                     choose(page, "group", group)
                     choose(page, "mode", "quiz")
                 page.click("#start-go")
-                for _ in range(2):
+                for _ in range(2 if cat != "entrance" else 6):
                     prompt = page.inner_text("#quiz-prompt")
                     page.click("#quiz-reveal")
                     if not prompt or not page.inner_text("#quiz-verdict"):
@@ -146,6 +170,7 @@ def play(page):
                     page.click("#quiz-next")
                 page.click("#quiz-quit")
                 page.click("#new-quiz")
+    problems += play_text(page)
     for mode in ("name", "find"):
         choose(page, "category", "anatomy")
         choose(page, "group", "bones")
@@ -162,13 +187,92 @@ def play(page):
     return problems
 
 
+def play_text(page):
+    """An Entrance Exam text question answered with its own model answer
+    (right), then with nonsense (wrong, then overruled), then a click or
+    name question, which must not show the text question's keywords."""
+    problems = []
+    choose(page, "category", "entrance")
+    choose(page, "count", 0)
+    page.click("#start-go")
+    tried, after_text = 0, False
+    while tried < 2 or not after_text:
+        kind = page.evaluate("ANATOMY_DEBUG.question().type")
+        if kind == "text":
+            answer = page.evaluate("ANATOMY_DEBUG.question().answer") if tried == 0 else "zzz"
+            page.fill("#quiz-guess", answer)
+            page.press("#quiz-guess", "Enter")
+            verdict = page.inner_text("#quiz-verdict")
+            if tried == 0 and "Correct" not in verdict:
+                problems.append(f"entrance: model answer graded {verdict!r}")
+            if tried == 1:
+                page.click("#quiz-override")
+                if "right" not in page.inner_text("#quiz-verdict"):
+                    problems.append("entrance: I was right didn't change the verdict")
+            tried += 1
+        else:
+            page.click("#quiz-reveal")
+            if tried and (page.is_visible("#quiz-keys") or page.is_visible("#quiz-answer")):
+                problems.append(f"entrance: a {kind or 'click'} question shows a text question's keywords")
+            after_text = after_text or tried > 0
+        if page.is_hidden("#quiz-next"):
+            problems.append("entrance: no Next button")
+            break
+        if page.inner_text("#quiz-next") == "Finish":
+            break
+        page.click("#quiz-next")
+    page.click("#quiz-quit")
+    page.click("#new-quiz")
+    return problems
+
+
+def play_cards(browser):
+    """index.html on a phone: it must go to the notecards (cards.html)
+    without fetching the 3D body, which offer only typed questions that
+    need no highlighted part, and play through a short quiz."""
+    problems = []
+    context = browser.new_context(**PHONE)
+    page = context.new_page()
+    fetched = []
+    page.on("request", lambda r: fetched.append(r.url))
+    page.on("pageerror", lambda e: problems.append(f"cards: page error: {e}"))
+    page.goto(INDEX_HTML.as_uri())
+    page.wait_for_url("**/cards.html")
+    page.wait_for_function("window.CARDS_DEBUG")
+    heavy = [u for u in fetched if u.endswith(("bodydata.js", "three.min.js", "viewer.js"))]
+    if heavy:
+        problems.append(f"cards: a phone still fetched {heavy}")
+    bad = page.evaluate("CARDS_DEBUG.pool.filter((q) => q.type !== 'text' || q.show).map((q) => q.id)")
+    if bad or not page.evaluate("CARDS_DEBUG.pool.length"):
+        problems.append(f"cards: pool empty or holds questions that need the body: {bad}")
+    page.click('input[name=count][value="10"] + span')
+    page.click("#start-go")
+    for i in range(10):
+        if i == 0:
+            page.fill("#quiz-guess", page.evaluate("CARDS_DEBUG.question().answer"))
+            page.press("#quiz-guess", "Enter")
+            if "Correct" not in page.inner_text("#quiz-verdict"):
+                problems.append(f"cards: model answer graded {page.inner_text('#quiz-verdict')!r}")
+        else:
+            page.click("#quiz-reveal")
+            if page.is_visible("#quiz-keys"):
+                problems.append("cards: a revealed answer still shows the last answer's keywords")
+        if page.evaluate("document.documentElement.scrollWidth > innerWidth"):
+            problems.append("cards: the page scrolls sideways on a phone")
+        page.click("#quiz-next")
+    if "1 of 10" not in page.inner_text("#done-score"):
+        problems.append(f"cards: done screen says {page.inner_text('#done-score')!r}")
+    context.close()
+    return problems
+
+
 def main(gaps):
     # Small, since headless Chrome renders every frame in software.
     with app(800, 600) as page:
         page.wait_for_timeout(500)
         result = page.evaluate(CHECKS, OVERLAYS)
         en = page.evaluate("Object.keys(I18N)")
-        problems = play(page)
+        problems = play(page) + play_cards(page.context.browser)
         errors = page.errors + result["errors"] + problems
     errors += [f"no {key} in en.js (used in index.html or viewer.js)"
                for key in sorted(static_keys() - set(en))]

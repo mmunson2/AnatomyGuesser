@@ -5,6 +5,10 @@
     make shot ARGS="out.png --frame femoral_artery --view back --select femoral_artery"
     make shot ARGS="out.png --start"                          # the start screen
     make shot ARGS="out.png --js 'document.querySelector(\"#start-go\").click()' --start"
+    make shot ARGS="out.png --phone --js 'document.querySelector(\"#start-go\").click()'"
+
+--phone opens index.html as a phone, which lands on the notecards
+(cards.html); only --js applies there, with D = window.CARDS_DEBUG.
 
 --frame points the camera at a part and zooms to fit it; --view picks the
 side to look from (front, back, left, right, top: the patient's left/right).
@@ -16,7 +20,8 @@ Write screenshots to the session scratchpad, not the repo.
 import argparse
 import sys
 
-from browser import app
+from browser import PHONE, app
+from paths import INDEX_HTML
 
 VIEWS = {"front": (0, 0, 1), "back": (0, 0, -1), "left": (1, 0, 0), "right": (-1, 0, 0),
          "top": (0, 1, 0.001)}
@@ -61,13 +66,34 @@ def main():
     ap.add_argument("--js", help="JavaScript to run last (D = window.ANATOMY_DEBUG)")
     ap.add_argument("--size", default="1400x900")
     ap.add_argument("--wait", type=int, default=600, help="ms to wait before the shot")
+    ap.add_argument("--phone", action="store_true", help="as a phone: the notecards page")
     o = ap.parse_args()
+    if o.phone:
+        return phone_shot(o)
     w, h = map(int, o.size.split("x"))
     with app(w, h) as page:
         page.evaluate(SETUP, [vars(o), VIEWS])
         page.wait_for_timeout(o.wait)
         page.screenshot(path=o.out)
         errors = page.errors
+    for e in errors:
+        print(e)
+    print(f"-> {o.out}")
+    return 1 if errors else 0
+
+
+def phone_shot(o):
+    with app(400, 300) as desktop:
+        context = desktop.context.browser.new_context(**PHONE)
+        page = context.new_page()
+        errors = []
+        page.on("pageerror", lambda e: errors.append(f"page error: {e}"))
+        page.goto(INDEX_HTML.as_uri())
+        page.wait_for_function("window.CARDS_DEBUG")
+        if o.js:
+            page.evaluate("(js) => new Function('D', js)(window.CARDS_DEBUG)", o.js)
+        page.wait_for_timeout(o.wait)
+        page.screenshot(path=o.out)
     for e in errors:
         print(e)
     print(f"-> {o.out}")

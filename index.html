@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title data-t="title"></title>
+<script>
+  // Phones get the text-only notecards (cards.html): the 3D body (three.js
+  // and a 6 MB model) loads badly on them. index.html?viewer opens the
+  // viewer anyway.
+  window.PHONE = !new URLSearchParams(location.search).has('viewer')
+    && (navigator.userAgentData?.mobile || /Mobi|iPhone|iPod/.test(navigator.userAgent)
+      || (matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 600));
+  if (PHONE) location.replace('cards.html');
+</script>
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -37,12 +46,16 @@
         </form>
         <div class="quiz-result" id="quiz-result" hidden>
           <p class="quiz-verdict" id="quiz-verdict"></p>
+          <ul class="quiz-keys" id="quiz-keys" hidden></ul>
+          <p class="quiz-answer" id="quiz-answer" hidden></p>
           <p class="quiz-clue" id="quiz-clue" hidden></p>
           <p class="quiz-explain" id="quiz-explain"></p>
           <a class="quiz-source" id="quiz-source" target="_blank" rel="noopener"></a>
         </div>
         <div class="quiz-actions">
           <button type="button" id="quiz-quit" class="quiz-quit" data-t="quiz.quit"></button>
+          <button type="button" id="quiz-override" data-t="quiz.override"
+                  data-t-title="quiz.overrideTip" hidden></button>
           <button type="button" id="quiz-reveal" data-t="quiz.reveal"></button>
           <button type="button" id="quiz-submit" data-t="quiz.submit" disabled></button>
           <button type="button" id="quiz-next" data-t="quiz.next" hidden></button>
@@ -113,11 +126,14 @@
   </div>
   <footer data-t="viewer.attribution"></footer>
 </div>
-<script src="https://unpkg.com/three@0.147.0/build/three.min.js"></script>
-<script src="https://unpkg.com/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
-<script src="i18n/en.js"></script>
-<script src="i18n/questions.en.js"></script>
-<script src="data/bodydata.js"></script>
-<script src="js/viewer.js"></script>
+<script>
+  // The viewer's scripts, run in this order. Added here rather than as
+  // tags, which the browser starts fetching before a phone is sent away.
+  if (!PHONE) for (const src of [
+    'https://unpkg.com/three@0.147.0/build/three.min.js',
+    'https://unpkg.com/three@0.147.0/examples/js/controls/OrbitControls.js',
+    'i18n/en.js', 'i18n/questions.en.js', 'data/bodydata.js', 'js/grade.js', 'js/viewer.js',
+  ]) document.body.append(Object.assign(document.createElement('script'), { src, async: false }));
+</script>
 </body>
 </html>
