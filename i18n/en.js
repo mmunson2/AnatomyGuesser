@@ -125,6 +125,7 @@ window.I18N = {
   'quiz.topic.endocrine': 'Endocrine system',
   'quiz.topic.urinary': 'Urinary system',
   'quiz.topic.pathophysiology': 'Pathophysiology',
+  'quiz.topic.lifespan': 'Life span development',
   'cards.title': 'Anatomy Guesser notecards',
   'cards.intro': 'The Entrance Exam questions you answer in words. The 3D body is too heavy for phones, so the questions that need it are left out here.',
   'cards.viewer': 'Open the 3D viewer anyway',

@@ -1,86 +1,37 @@
+Vitals of a newborn (first 30 minutes) - 100 - 160 BPM, 40-60 breaths/minute then slows to 120 BPM and 30-40 breaths/minute
 
-Disease: Abnormal condition in which homeostasis is threatened or cannot be maintained
+Vitals in first year of life - 80 to 140 BPM, 20-30 breaths/minute by year 1
 
+Respiratory anatomy differences for infants: 
+- Structures are smaller and more easily blocked. 
+- They breathe mostly through their nose, so nasal passages must be kept clear
+- They depend on the diaphragm for breathing
 
-Pathology: Study of disease
+Main cause of cardiac arrest in infants: Uncorrected respiratory problem
 
+Temperature regulation in infants: Not very good. Skin is thin with few fat deposits for insulation. Inability to shiver, immature sweating mechanism. Infants are at risk of hypothermia or hyperthermia
 
-Pathophysiology: Study of physical, chemical, and mechanical processes that cause or are caused by disease, producing changes in the structure or function of the body
+Cognitive changes in infants
+- By 6 months: Should make eye contact, babbling
+- 6-12 months, should start looking for something not in sight
+- Around 12 months: First understandable words
 
+Three types of baby cries
+- Basic
+- Angry
+- Pain
 
-Hypoxia: Lack of adequate oxygen 
-- Most common cause of cellular injury
-- Cells in the brain, heart, and kidneys are the most rapidly affected
+Toddler Vitals: 80 to 130 BPM, 20-30 breaths/minute
 
-Ischemia: Reduced blood supply
+Preschooler Vitals: 80 to 120 BPM, 20-30 breaths/minute
 
+School-age vitals: 70 to 110 BPM, 20-30 breaths/minute, 80-120 mm Hg systolic BP
 
-Infarct: Death of cell tissue due to Ischemia
+Adolescent vitals: 55 to 105 BPM, 12-20 breaths/minute, 100-120 mm Hg systolic BP
 
+Menarche: Onset of menstruation during puberty
 
-hypercarbia: Increase in CO2
-
-Wheezing: High or low pitched whistling sound usually heard on exhalation
-- Suggests that the lower airway is blocked with fluid or mucus
-
-
-Cardiac Output
-- The amount of blood the heart pumps each minute
-- Found by multiplying stroke volume (SV) by heart rate (HR)
-
-
-Stroke volume: The amount of blood ejected from the ventricles of the heart with each contraction
-
-
-Venous Return: The amount of blood returning to the heart
-
-
-Hemorrhage: Extreme loss of blood from a blood vessel
-
-Concerningly low heart rate (for most individuals) - below 50 bpm
-
-Blood Vessel Wall Layers:
-- Tunica intima - innermost layer. Smooth so blood flows easily
-- Tunica media - Thickest, middle layer. Smooth muscle allowing constriction and dilation
-- Tunica externa/adventita - Tough tissue protecting the vessel
-
-Conductance Vessels - large arteries moving blood away from the heart
+Young adult vitals: 70 BPM on average, 16-20 breaths/minute 120/80 mm Hg average
 
 
-Distributing vessels - medium-sized arteries
-
-Resistance vessels - arterioles.
-
-Lumen - interior space of an artery. Decreases as you move out from arteries to distributing/resistance vessels, and resistance increases
-
-
-precapillary sphincters - located at the transition from an arteriole to a capillary. Controls the amount of blood entering a capillary
-
-Exchange vessels - capillaries.
-
-Capacitance vessels - veins and venules. Function as reservoirs, stretching to accommodate blood as it returns to the heart
-
-Vasoconstriction - Increases peripheral resistance
-
-Vasodilation - decreases peripheral resistance
-
-Types of shock
-- Hypovolemic - Not enough blood, plasma, or water in the body
-- Cardiogenic - Blood can’t pump enough blood
-- Obstructive - Blood is slowed/blocked from circulating
-- Distributive - Due to massive dilation of blood vessels - infection/allergic reaction
-
-
-Pathogenesis: The mechanism by which a disease develops
-
-Etiology: The study of cause of disease
-
-Inflammation: Tissue reaction to injury, disease, irritation, or infection.
-- Characterized by pain, heat, redness, swelling, and sometimes loss of function
-
-
-Antigen: Substance foreign to the body that causes antibody production
-
-When an antigen causes signs/symptoms of an allergic reaction, it’s called an allergen
-
-Anaphylaxis: A severe allergic reaction that affects multiple body systems
+Middle adult vitals: 70 BPM on average, 16-20 breaths/minute, 120/80 mm Hg average
