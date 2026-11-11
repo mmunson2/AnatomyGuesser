@@ -74,6 +74,14 @@
   // (hip_bone, sacrum) exist once per body. Everything below works on
   // `meshes`, the active body only.
   let meshes = [], meshById = {};
+  // Organs made of several parts (GROUPS in build/parts_table.py): the
+  // cerebrum is its lobes, the heart its chambers and valves. A group id
+  // works wherever a part id does in a question; name all / find all ask
+  // for the parts.
+  const GROUPS = BODY_DATA.groups;
+  const groupOf = Object.fromEntries(Object.entries(GROUPS).flatMap(([g, ids]) => ids.map((id) => [id, g])));
+  // A part's mesh, or a group's, in the body on show.
+  const meshesOf = (id) => (GROUPS[id] ?? [id]).map((pid) => meshById[pid]).filter(Boolean);
   function setBody(sex) {
     meshes = allMeshes.filter((m) => !m.userData.part.sex || m.userData.part.sex === sex);
     meshById = Object.fromEntries(meshes.map((m) => [m.userData.part.id, m]));
@@ -187,13 +195,18 @@
   const ray = new THREE.Raycaster();
   const picked = document.getElementById('picked');
   const partName = (mesh) => t('part.' + mesh.userData.part.id);
+  // In the header, a part of a group says which: "Frontal lobe (cerebrum)".
+  const pickedName = (mesh) => {
+    const g = groupOf[mesh.userData.part.id];
+    return g ? t('viewer.inGroup', { part: partName(mesh), group: t('part.' + g) }) : partName(mesh);
+  };
   let selection = [], downAt = null;
 
   function setSelection(list) {
     selection.forEach((m) => m.material.color.setHex(m.userData.baseColor));
     selection = list;
     selection.forEach((m) => m.material.color.setHex(HIGHLIGHT));
-    picked.textContent = selection.length ? selection.map(partName).join(', ')
+    picked.textContent = selection.length ? selection.map(pickedName).join(', ')
       : quizOn ? t('quiz.title', { category: t('category.' + settings.category) }) : t('viewer.none');
     hideBtn.hidden = !selection.length;
     submitBtn.disabled = !selection.length;
@@ -340,12 +353,14 @@
   const guessInput = q$('guess');
   function questionPool() {
     const clues = shuffled(category().questions.filter((q) => (q.type === 'text'
-      ? !q.show || meshById[q.show]
-      : answerIds(q).every((id) => meshById[id] && inCategory(id)))));
+      ? !q.show || meshesOf(q.show).length
+      : answerIds(q).every((id) => meshesOf(id).length && inCategory(id)))));
     if (category().named === false) return clues;
     // Vessels are too thin to spot through the x-rayed body, so their
-    // questions show the cardiovascular system alone.
-    const named = shuffled(categoryMeshes().map((m) => m.userData.part.id).map((id) => ({
+    // questions show the cardiovascular system alone. Groups are named
+    // too, with all their parts highlighted.
+    const groups = Object.keys(GROUPS).filter((g) => meshesOf(g).length && inCategory(g));
+    const named = shuffled([...categoryMeshes().map((m) => m.userData.part.id), ...groups].map((id) => ({
       id: 'name-' + id, type: 'name', answer: id, topic: 'name',
       ...(structureKind(id) === 'vessel' && { focus: 'cardiovascular' }) })));
     // Alternate the two kinds, so any length is half and half.
@@ -359,24 +374,30 @@
   }
 
   // What to call the part in a "name it" prompt: bone, muscle or vessel by
-  // system, else organ, with a few exceptions.
-  const KIND_OVERRIDES = { costal_cartilage: 'cartilage', heart: 'organ' };
-  // (Looked up in either body, so it works for parts the other body has.)
+  // system, else organ, with a few exceptions. A part of a group takes the
+  // group's override (the heart's chambers and valves are organ parts).
+  const KIND_OVERRIDES = { costal_cartilage: 'cartilage', heart: 'organ',
+    coronary_arteries: 'vessel', cardiac_veins: 'vessel' };
+  // (Looked up in either body, so it works for parts the other body has.
+  // A group's system is its first part's.)
   const systemOf = Object.fromEntries(BODY_DATA.parts.map((p) => [p.id, p.system]));
-  const structureKind = (pid) => KIND_OVERRIDES[pid]
+  for (const [g, ids] of Object.entries(GROUPS)) systemOf[g] = systemOf[ids[0]];
+  const structureKind = (pid) => KIND_OVERRIDES[pid] ?? KIND_OVERRIDES[groupOf[pid]]
     ?? { skeletal: 'bone', muscular: 'muscle', cardiovascular: 'vessel' }[systemOf[pid]] ?? 'organ';
   // Parts made of several structures get "(s)" in the prompt.
   const MANY = new Set(['lungs', 'vena_cava', 'cervical_vertebrae', 'thoracic_vertebrae',
     'lumbar_vertebrae', 'ribs', 'costal_cartilage', 'carpals', 'metacarpals', 'finger_phalanges',
     'tarsals', 'metatarsals', 'toe_phalanges', 'rhomboids', 'forearm_flexors', 'forearm_extensors',
     'erector_spinae', 'iliopsoas', 'adductors', 'fibularis', 'ovary', 'fallopian_tube', 'breast',
-    'pulmonary_trunk', 'palmar_arches']);
+    'pulmonary_trunk', 'palmar_arches', 'bronchi', 'salivary_glands', 'parathyroid_glands']);
   // The target parts a category asks about: all of them, or those of the chosen group's `kinds`.
   const inCategory = (pid) => !group() || group().kinds.includes(structureKind(pid));
   const categoryMeshes = () =>
     meshes.filter((m) => m.userData.part.kind === 'target' && inCategory(m.userData.part.id));
-  const namePrompt = (pid) =>
-    t('quiz.namePrompt.' + structureKind(pid) + (MANY.has(pid) ? '.many' : ''));
+  // A group's parts are asked as "Name the selected part of the heart".
+  const namePromptKey = (pid) => groupOf[pid] ? 'quiz.namePrompt.in.' + groupOf[pid]
+    : 'quiz.namePrompt.' + structureKind(pid) + (MANY.has(pid) ? '.many' : '');
+  const namePrompt = (pid) => t(namePromptKey(pid));
 
   // Each question starts from the full body: anything hidden (structures or
   // whole systems) comes back, as with Unhide all.
@@ -393,7 +414,7 @@
     if (focus.length) hide(meshes.filter((m) => !focus.includes(m.userData.part.system)));
     const shown = naming ? question.answer : question.show;
     if (shown) {
-      mark(meshById[shown], HIGHLIGHT);
+      meshesOf(shown).forEach((m) => mark(m, HIGHLIGHT));
       xray(true);
     }
     q$('topic').textContent = t('quiz.topic.' + question.topic);
@@ -417,23 +438,28 @@
 
   // A question has one `answer`, or several `answers` (all must be picked)
   // plus `also`: parts that are fine to pick but not required.
+  // An answer that is a group is picked by picking any of its parts.
   const answerIds = (q) => q.answers ?? [q.answer];
   const names = (list) => list.map(partName).join(', ');
+  const idNames = (ids) => ids.map((id) => t('part.' + id)).join(', ');
 
   // chosen: the meshes the player picked, or null when they gave up.
   function finish(chosen) {
     answered = true;
-    const required = answerIds(question).map((id) => meshById[id]);
-    const allowed = new Set([...required, ...(question.also ?? []).map((id) => meshById[id])]);
+    const ids = answerIds(question);
+    const required = ids.map(meshesOf);
+    const allowed = new Set([...required.flat(), ...(question.also ?? []).flatMap(meshesOf)]);
     const picks = chosen ?? [];
     const wrong = picks.filter((m) => !allowed.has(m));
-    const missed = required.filter((m) => !picks.includes(m));
+    const missed = ids.filter((id, i) => !required[i].some((m) => picks.includes(m)));
     const right = picks.length > 0 && !wrong.length && !missed.length;
-    history.push({ question, right, given: chosen && names(picks), answer: names(required) });
+    history.push({ question, right, given: chosen && names(picks), answer: idNames(ids) });
 
-    unhide(required.filter((m) => m.userData.hidden));
+    unhide(required.flat().filter((m) => m.userData.hidden));
+    // A group found shows whole; one missed shows whole in orange.
+    required.forEach((list, i) => list.forEach((m) =>
+      mark(m, chosen && missed.includes(ids[i]) ? MISSED : RIGHT)));
     picks.filter((m) => allowed.has(m)).forEach((m) => mark(m, RIGHT));
-    missed.forEach((m) => mark(m, chosen ? MISSED : RIGHT));
     wrong.forEach((m) => mark(m, WRONG));
     xray(true);
     if (question.overlay) overlays[question.overlay].visible = true;
@@ -441,17 +467,17 @@
     const verdict = q$('verdict');
     verdict.className = 'quiz-verdict ' + (right ? 'right' : 'wrong');
     if (!question.answers) {
-      const target = required[0];
-      verdict.textContent = right ? t('quiz.correct', { part: partName(target) })
-        : chosen ? t('quiz.wrong', { clicked: partName(picks[0]), part: partName(target) })
-        : t('quiz.revealed', { part: partName(target) });
+      const target = idNames(ids);
+      verdict.textContent = right ? t('quiz.correct', { part: target })
+        : chosen ? t('quiz.wrong', { clicked: partName(picks[0]), part: target })
+        : t('quiz.revealed', { part: target });
     } else if (right) {
-      verdict.textContent = t('quiz.allCorrect', { parts: names(required) });
+      verdict.textContent = t('quiz.allCorrect', { parts: idNames(ids) });
     } else if (!chosen) {
-      verdict.textContent = t('quiz.revealedMany', { parts: names(required) });
+      verdict.textContent = t('quiz.revealedMany', { parts: idNames(ids) });
     } else {
       verdict.textContent = [
-        missed.length ? t('quiz.missed', { parts: names(missed) }) : '',
+        missed.length ? t('quiz.missed', { parts: idNames(missed) }) : '',
         wrong.length ? t('quiz.notAnswer', { parts: names(wrong) }) : '',
       ].join(' ').trim();
     }
@@ -485,17 +511,17 @@
   // explanation borrows a single-answer clue about the same part, if there is one.
   function finishName(guess) {
     answered = true;
-    const target = meshById[question.answer];
+    const target = t('part.' + question.answer);
     const right = guess !== null && nameMatches(guess, question.answer);
-    history.push({ question, right, given: guess && guess.trim(), answer: partName(target) });
+    history.push({ question, right, given: guess && guess.trim(), answer: target });
     clearMarks();
-    mark(target, right || guess === null ? RIGHT : WRONG);
+    meshesOf(question.answer).forEach((m) => mark(m, right || guess === null ? RIGHT : WRONG));
     xray(true);
     const verdict = q$('verdict');
     verdict.className = 'quiz-verdict ' + (right ? 'right' : 'wrong');
-    verdict.textContent = right ? t('quiz.correct', { part: partName(target) })
-      : guess !== null ? t('quiz.nameWrong', { guess: guess.trim(), part: partName(target) })
-      : t('quiz.revealed', { part: partName(target) });
+    verdict.textContent = right ? t('quiz.correct', { part: target })
+      : guess !== null ? t('quiz.nameWrong', { guess: guess.trim(), part: target })
+      : t('quiz.revealed', { part: target });
     // A written name question explains itself. Otherwise single-answer clues
     // only: a "Select the organs of…" prompt reads oddly here.
     if (question.prompt) { showResult(question); return; }
@@ -541,25 +567,36 @@
 
   // Typed answers: case, accents, punctuation, word order, "the"/"of" and
   // plural -s don't matter, and the display name or any `alias.<id>` counts.
-  // Small typos pass only when no other part is as close a match.
-  const STOP = new Set(['the', 'of', 'a', 'an', 'and', 'left', 'right']);
+  // "Left" and "right" count only for names that have one (left atrium):
+  // "left femur" is the femur. Small typos pass only when no other part is
+  // as close a match.
+  const STOP = new Set(['the', 'of', 'a', 'an', 'and']);
+  const SIDE = /\b(left|right)\b/;
   function nameKey(text) {
     return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
       .split(/[^a-z0-9]+/).filter((w) => w && !STOP.has(w))
       .map((w) => (w.length > 3 ? w.replace(/s$/, '') : w))
       .sort().join(' ');
   }
-  const nameKeys = Object.fromEntries(allMeshes.map((m) => {
-    const id = m.userData.part.id;
+  const sideless = (key) => key.split(' ').filter((w) => !SIDE.test(w)).join(' ');
+  // The guess's key as compared with one of a part's name keys.
+  const asFor = (key, name) => (SIDE.test(name) ? key : sideless(key));
+  const nameKeys = Object.fromEntries([...allMeshes.map((m) => m.userData.part.id), ...Object.keys(GROUPS)].map((id) => {
     const aliases = I18N['alias.' + id] ? I18N['alias.' + id].split('|') : [];
     return [id, [t('part.' + id), ...aliases].map(nameKey)];
   }));
   const distance = GRADE.distance;
+  // Part ids whose name the key is exactly, preferring a name with its side.
+  function exactly(key, ids) {
+    const sided = ids.filter((id) => nameKeys[id].includes(key));
+    return sided.length ? sided : ids.filter((id) => nameKeys[id].includes(sideless(key)));
+  }
   function nameMatches(guess, id) {
     const key = nameKey(guess);
     if (!key) return false;
-    if (nameKeys[id].includes(key)) return true;
-    const best = (pid) => Math.min(...nameKeys[pid].map((k) => distance(key, k)));
+    const exact = exactly(key, Object.keys(nameKeys));
+    if (exact.length) return exact.includes(id);
+    const best = (pid) => Math.min(...nameKeys[pid].map((k) => distance(asFor(key, k), k)));
     const own = best(id);
     const allowed = key.length >= 10 ? 2 : key.length >= 5 ? 1 : 0;
     return own <= allowed && Object.keys(nameKeys).every((pid) => pid === id || best(pid) > own);
@@ -922,21 +959,26 @@
     const text = guessInput.value;
     const key = nameKey(text);
     if (!key) return;
-    const named = (ids) => ids.find((id) => nameKeys[id].includes(key));
+    const named = (ids) => exactly(key, ids)[0];
     // Without a part clicked, keep the text so it can go in after the click.
     const target = run.target && pidOf(run.target);
     if (run.mode === 'find' && !target) { shake(t('run.clickFirst')); return; }
     guessInput.value = '';
 
+    // The name of a whole group (cerebrum, heart) asks for its parts.
+    const group = named(Object.keys(GROUPS));
     if (run.mode === 'find') {
-      if (nameKeys[target].includes(key)) { accept(target); return; }
+      if (exactly(key, Object.keys(nameKeys)).includes(target)) { accept(target); return; }
+      if (group && group === groupOf[target]) { shake(t('run.whole', { guess: text.trim() })); return; }
       const other = named(Object.keys(nameKeys));
       shake(t(other ? 'run.wrongPart' : 'run.notIt', { guess: text.trim() }));
       return;
     }
 
     const pid = named(run.ids);
-    if (!pid) shake(t('run.notOnList', { guess: text.trim() }));
+    if (!pid && group && GROUPS[group].some((id) => run.ids.includes(id)))
+      shake(t('run.whole', { guess: text.trim() }));
+    else if (!pid) shake(t('run.notOnList', { guess: text.trim() }));
     else if (run.found.has(pid)) feedback(t('run.already', { part: t('part.' + pid) }), false);
     else accept(pid);
   }
@@ -988,13 +1030,14 @@
   // For tools/check.py and tools/shot.py, which drive the page headless.
   // Not used by the app itself.
   window.ANATOMY_DEBUG = {
-    THREE, renderer, camera, controls, nameKey, GRADE, structureKind, MANY, settings,
-    meshes: () => meshes, allMeshes, meshById: () => meshById,
-    showBody, explore, question: () => question, select: (id) => select(meshById[id] ?? null),
+    THREE, renderer, camera, controls, nameKey, GRADE, structureKind, namePromptKey, MANY, settings,
+    meshes: () => meshes, allMeshes, meshById: () => meshById, meshesOf, GROUPS,
+    showBody, explore, question: () => question,
+    select: (id) => setSelection(meshesOf(id)),
     solo: (systems) => {
       unhideAll();
       hide(meshes.filter((m) => !systems.includes(m.userData.part.system)));
     },
-    hide: (ids) => hide(ids.map((id) => meshById[id]).filter(Boolean)),
+    hide: (ids) => hide(ids.flatMap(meshesOf)),
   };
 })();

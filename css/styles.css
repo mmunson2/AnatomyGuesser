@@ -63,6 +63,9 @@ footer { padding: .3rem 1rem; font-size: 11px; color: #6b7079;
 .quiz-actions .quiz-quit:hover { background: none; color: #e8e6e1; }
 .body-toggle { position: absolute; right: 1rem; bottom: 1rem; z-index: 11; display: flex;
   border: 1px solid #3a3e46; border-radius: 4px; overflow: hidden; }
+/* Above the start screen, so the body can be switched there, but behind the
+   done screen, whose buttons it would cover on a short window. */
+body:has(#done:not([hidden])) .body-toggle { z-index: 9; }
 .body-toggle .choice span { border: 0; border-radius: 0; }
 .body-toggle .choice input:disabled + span { cursor: default; }
 .body-toggle .choice input:disabled:not(:checked) + span { opacity: .4; }

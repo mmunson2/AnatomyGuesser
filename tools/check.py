@@ -29,7 +29,10 @@ CHECKS = r"""(OVERLAYS) => {
   const targets = [...new Set(parts.filter((p) => p.kind === 'target').map((p) => p.id))];
   const systems = new Set(parts.map((p) => p.system));
   const bodiesOf = (id) => [...new Set(parts.filter((p) => p.id === id).map((p) => p.sex ?? 'both'))];
-  const exists = (id) => targets.includes(id);
+  // Groups (BODY_DATA.groups) answer questions like parts, and have names.
+  const groups = Object.keys(BODY_DATA.groups);
+  const exists = (id) => targets.includes(id) || groups.includes(id);
+  const named = [...targets, ...groups];
 
   // Text questions: keys well formed, the model answer passes its own
   // grader, and the optional `tests` pass or fail as they say.
@@ -86,13 +89,13 @@ CHECKS = r"""(OVERLAYS) => {
   }
 
   // Names and aliases.
-  for (const id of targets) if (!I18N['part.' + id]) errors.push(`part "${id}" has no part.${id} in en.js`);
+  for (const id of named) if (!I18N['part.' + id]) errors.push(`part "${id}" has no part.${id} in en.js`);
   for (const key of Object.keys(I18N)) {
     const m = key.match(/^(part|alias)\.(.+)$/);
-    if (m && !parts.some((p) => p.id === m[2])) warnings.push(`en.js: ${key} names no part`);
+    if (m && !exists(m[2]) && !parts.some((p) => p.id === m[2])) warnings.push(`en.js: ${key} names no part`);
   }
   const owner = new Map();
-  for (const id of targets) {
+  for (const id of named) {
     const names = [I18N['part.' + id] ?? id, ...(I18N['alias.' + id]?.split('|') ?? [])];
     for (const name of names) {
       const key = D.nameKey(name);
@@ -107,7 +110,7 @@ CHECKS = r"""(OVERLAYS) => {
     ...[...systems].filter((s) => s !== 'integumentary').map((s) => 'system.' + s),
     ...CATEGORIES.flatMap((c) => ['category.' + c.id, 'category.' + c.id + '.tip',
       ...(c.groups ?? []).flatMap((g) => ['group.' + g.id, 'group.' + g.id + '.tip', 'group.' + g.id + '.items'])]),
-    ...targets.map((id) => 'quiz.namePrompt.' + D.structureKind(id) + (D.MANY.has(id) ? '.many' : '')),
+    ...named.map(D.namePromptKey),
   ];
   for (const key of new Set(need)) if (!(key in I18N)) errors.push(`no ${key} in en.js`);
   for (const id of D.MANY) if (!exists(id)) warnings.push(`MANY in viewer.js names no part "${id}"`);
@@ -115,13 +118,13 @@ CHECKS = r"""(OVERLAYS) => {
   // Coverage, for --gaps.
   for (const cat of CATEGORIES.filter((c) => c.groups)) {
     for (const g of cat.groups) {
-      const ids = targets.filter((id) => g.kinds.includes(D.structureKind(id)));
+      const ids = named.filter((id) => g.kinds.includes(D.structureKind(id)));
       const bare = ids.filter((id) => !clued.has(id));
       info.push(`${cat.id}/${g.id}: ${ids.length} parts, ${ids.length - bare.length} with a clue`
         + (bare.length ? `; none for: ${bare.join(', ')}` : ''));
     }
   }
-  const noAlias = targets.filter((id) => !I18N['alias.' + id]);
+  const noAlias = named.filter((id) => !I18N['alias.' + id]);
   info.push(`${noAlias.length} parts without aliases: ${noAlias.join(', ')}`);
   const oneBody = targets.filter((id) => !bodiesOf(id).includes('both') && bodiesOf(id).length === 1);
   info.push(`one body only: ${oneBody.map((id) => id + ' (' + bodiesOf(id)[0] + ')').join(', ')}`);

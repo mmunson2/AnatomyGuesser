@@ -15,14 +15,62 @@ ORGAN, BIG_BONE, SMALL_BONE = 4000, 1800, 500
 ARTERY, BIG_ARTERY = 1000, 1600
 
 TARGETS = [
-    # nervous
-    ("cerebrum", "nervous", 8000, ["left cerebral hemisphere", "right cerebral hemisphere"]),
+    # nervous. BodyParts3D's cerebrum is a set of gyri, grouped here into
+    # lobes (the parahippocampal and fusiform gyri with the temporal lobe),
+    # plus the insula, cingulate gyrus, hippocampus and the white matter the
+    # gyri sit on. GROUPS joins them back up.
+    ("frontal_lobe", "nervous", 3000,
+     ["re:^(left |right )?((superior|middle|inferior) frontal|precentral|orbital) gyrus$"]),
+    ("parietal_lobe", "nervous", 2500,
+     ["re:^(left |right )?(postcentral gyrus|superior parietal lobule|supramarginal gyrus"
+      "|angular gyrus)$"]),
+    ("temporal_lobe", "nervous", 2500,
+     ["re:^((anterior|posterior) part of )?(left |right )?(superior|middle|inferior) temporal gyrus$",
+      "re:^(left |right )?(fusiform|parahippocampal) gyrus$"]),
+    ("occipital_lobe", "nervous", 1500, ["re:^(left |right )?occipital lobe$"]),
+    ("corpus_callosum", "nervous", 800, ["corpus callosum"]),
+    ("insula", "nervous", 600, ["re:^(left |right )insula$"]),
+    ("cingulate_gyrus", "nervous", 800, ["re:^(left |right )cingulate gyrus$"]),
+    ("hippocampus", "nervous", 600, ["re:^(left |right )hippocampus$"]),
+    ("cerebral_white_matter", "nervous", 3000,
+     ["re:^white matter of (left|right) cerebral hemisphere$", "re:^(left |right )internal capsule$"]),
+    ("brain_ventricles", "nervous", 1500,
+     ["re:^(left |right )?(lateral|third|fourth) ventricle$", "cerebral aqueduct"]),
+    ("thalamus", "nervous", 800,
+     ["re:^(left |right )?(thalamus|stria medullaris of thalamus)$", "habenula"]),
+    ("hypothalamus", "nervous", 500, ["re:^(hypothalamus|mammillary body|tuber cinereum)$"]),
+    ("midbrain", "nervous", 1500,
+     ["re:^(midbrain|peduncle of midbrain|(left |right )?(superior|inferior) colliculus)$"]),
+    ("pons", "nervous", 1200, ["re:^pons$"]),
+    ("medulla_oblongata", "nervous", 1200, ["re:^medulla oblongata$"]),
     ("cerebellum", "nervous", ORGAN, ["cerebellum"]),
-    ("brainstem", "nervous", ORGAN, ["brainstem"]),
     ("eye", "nervous", 1500, ["left eyeball", "right eyeball"]),
 
+    # heart: the chambers are BodyParts3D's cavities (and atrial walls); it
+    # has one wall for both ventricles, which is left out.
+    ("tricuspid_valve", "cardiovascular", 600, ["re:leaflet of tricuspid valve$"]),
+    ("pulmonary_valve", "cardiovascular", 600, ["re:cusp of pulmonary valve$"]),
+    ("mitral_valve", "cardiovascular", 600, ["re:leaflet of mitral valve$"]),
+    ("aortic_valve", "cardiovascular", 600, ["re:cusp of aortic valve$"]),
+    ("right_atrium", "cardiovascular", 1500, ["re:^(cavity|wall) of right atrium$"]),
+    ("left_atrium", "cardiovascular", 1500, ["re:^(cavity|wall) of left atrium$"]),
+    ("right_ventricle", "cardiovascular", 1500,
+     ["re:^cavity of right ventricle$", "re:papillary muscle of right ventricle$"]),
+    ("left_ventricle", "cardiovascular", 1500,
+     ["re:^cavity of left ventricle$", "re:papillary muscle of left ventricle$"]),
+    ("coronary_arteries", "cardiovascular", 3000, ["re:(coronary|conus) artery$"]),
+    ("cardiac_veins", "cardiovascular", ARTERY,
+     ["re:^(coronary sinus|great cardiac vein|small cardiac vein|right marginal vein)$"]),
+
+    # larynx: the vocal folds are the vocal ligaments and vocalis muscles.
+    ("thyroid_cartilage", "respiratory", 600, ["thyroid cartilage"]),
+    ("cricoid_cartilage", "respiratory", 400, ["cricoid cartilage"]),
+    ("epiglottis", "respiratory", 400, ["re:^epiglottis$"]),
+    ("arytenoid_cartilages", "respiratory", 400,
+     ["re:^(left |right )(arytenoid|corniculate|cuneiform) cartilage$"]),
+    ("vocal_folds", "respiratory", 300, ["re:^(left |right )(vocal ligament|vocalis)$"]),
+
     # cardiovascular / respiratory
-    ("heart", "cardiovascular", 8000, ["heart"]),
     ("aorta", "cardiovascular", ORGAN, ["aorta"]),
     ("vena_cava", "cardiovascular", ORGAN, ["re:^(inferior|superior) vena cava$"]),
 ] + [
@@ -90,7 +138,10 @@ TARGETS = [
         ("small_saphenous_vein", "small saphenous vein"),
     ]
 ] + [
-    ("lungs", "respiratory", 12000, ["right lung", "left lung"]),
+    # BodyParts3D's lungs are airway and vessel trees (the lobes are
+    # Z-Anatomy's): the airways from the main bronchi down are the bronchi.
+    ("bronchi", "respiratory", 6000,
+     ["re:^(left main bronchus|right main bronchus proper)$", "re:bronchial tree$"]),
     ("trachea", "respiratory", 1500, ["trachea"]),
 
     # digestive
@@ -102,13 +153,23 @@ TARGETS = [
     ("pancreas", "digestive", ORGAN, ["pancreas"]),
     ("spleen", "digestive", 2000, ["spleen"]),
     ("duodenum", "digestive", 2000, ["duodenum"]),
-    ("small_intestine", "digestive", 10000, ["small intestine"]),
+    ("jejunum", "digestive", 4000, ["re:part of jejunum$"]),
+    ("ileum", "digestive", 6000, ["re:part of ileum$", "ileocecal junction"]),
     ("appendix", "digestive", 800, ["appendix"]),
     ("rectum", "digestive", 1500, ["rectum"]),
-    ("large_intestine", "digestive", 6000, ["large intestine"]),
+    # The ascending colon includes the cecum, and the descending colon the
+    # sigmoid colon, which SPLITS cuts off.
+    ("ascending_colon", "digestive", 2000, ["ascending colon"]),
+    ("transverse_colon", "digestive", 2500, ["transverse colon"]),
+    ("descending_colon", "digestive", 2000, ["descending colon"]),
+    ("salivary_glands", "digestive", 800,
+     ["re:^(left |right )(submandibular|sublingual) gland$"]),
     ("diaphragm", "muscular", ORGAN, ["diaphragm"]),
 
     # urinary / reproductive / endocrine
+    ("thymus", "endocrine", 1000, ["re:^(left|right) lobe of thymus$"]),
+    ("pituitary_gland", "endocrine", 300, ["pituitary gland"]),
+    ("pineal_gland", "endocrine", 200, ["pineal body"]),
     ("kidney", "urinary", 3000, ["kidney"]),
     ("adrenal_gland", "endocrine", 1000, ["adrenal gland"]),
     ("ureter", "urinary", 1000, ["ureter"]),
@@ -125,6 +186,14 @@ TARGETS = [
     ("zygomatic_bone", "skeletal", SMALL_BONE, ["re:^(left |right )?zygomatic bone$"]),
     ("maxilla", "skeletal", BIG_BONE, ["re:^(left |right )?maxilla$"]),
     ("nasal_bone", "skeletal", 300, ["re:^(left |right )?nasal bone$"]),
+    ("sphenoid_bone", "skeletal", BIG_BONE, ["sphenoid bone"]),
+    ("ethmoid_bone", "skeletal", SMALL_BONE * 2, ["re:^ethmoid$"]),
+    ("vomer", "skeletal", SMALL_BONE, ["re:^vomer$"]),
+    ("palatine_bone", "skeletal", SMALL_BONE, ["re:^(left |right )palatine bone$"]),
+    ("lacrimal_bone", "skeletal", 300, ["re:^(left |right )lacrimal bone$"]),
+    ("inferior_nasal_concha", "skeletal", SMALL_BONE, ["re:^(left |right )inferior nasal concha$"]),
+    # With the eye, as a sense organ's accessory gland.
+    ("lacrimal_gland", "nervous", 300, ["re:^(left |right )lacrimal gland$"]),
     ("hyoid", "skeletal", SMALL_BONE, ["hyoid bone"]),
 
     # axial
@@ -158,6 +227,12 @@ TARGETS = [
     ("metatarsals", "skeletal", 2500, ["metatarsal bone"]),
     ("toe_phalanges", "skeletal", 4000, ["re:phalanx of .*toe$"]),
 ]
+
+# The vessel trees inside the lungs carry on the pulmonary arteries and veins.
+LUNG_VESSELS = {"pulmonary_trunk": "artery", "pulmonary_veins": "vein"}
+TARGETS = [(pid, system, 6000, selectors + [f"re:(segmental|lingular|lobar) {LUNG_VESSELS[pid]}$"])
+           if pid in LUNG_VESSELS else (pid, system, budget, selectors)
+           for pid, system, budget, selectors in TARGETS]
 
 
 def muscle(*names):
@@ -242,10 +317,31 @@ BAD_ELEMENTS = {
     "FJ2044": "renal artery branch filed under right lung",
 }
 
+# Everything drawn is a target, so it can be clicked, except the skin. The
+# larynx's small muscles and membranes and the colon's taeniae aren't drawn.
 CONTEXT = [
-    ("skull_other", "skeletal", 4000, ["skull"]),
     ("skin", "integumentary", 12000, ["skin"]),
 ]
+
+# Organs made of the parts above: {id: [part ids]}. A question answered by a
+# group is answered by any of its parts, a "name it" question about it
+# shows them all, and name all / find all ask for the parts.
+GROUPS = {
+    "cerebrum": ["frontal_lobe", "parietal_lobe", "temporal_lobe", "occipital_lobe", "insula",
+                 "cingulate_gyrus", "hippocampus", "corpus_callosum", "cerebral_white_matter"],
+    "diencephalon": ["thalamus", "hypothalamus"],
+    "brainstem": ["midbrain", "pons", "medulla_oblongata"],
+    "heart": ["right_atrium", "left_atrium", "right_ventricle", "left_ventricle",
+              "tricuspid_valve", "pulmonary_valve", "mitral_valve", "aortic_valve",
+              "coronary_arteries", "cardiac_veins"],
+    "larynx": ["thyroid_cartilage", "cricoid_cartilage", "epiglottis", "arytenoid_cartilages",
+               "vocal_folds"],
+    "pharynx": ["nasopharynx", "oropharynx", "laryngopharynx"],
+    "lungs": ["right_upper_lobe", "right_middle_lobe", "right_lower_lobe",
+              "left_upper_lobe", "left_lower_lobe"],
+    "small_intestine": ["duodenum", "jejunum", "ileum"],
+    "large_intestine": ["ascending_colon", "transverse_colon", "descending_colon", "sigmoid_colon"],
+}
 
 # The female body: the BodyParts3D male with its pelvis swapped for the HRA
 # (Human Reference Atlas) female one, plus female organs. Each entry is
@@ -316,15 +412,23 @@ ZANATOMY_TARGETS = [
     # Our lungs are only airway and vessel trees; Z-Anatomy's lobes give them
     # a surface. Z-Anatomy draws the cord as a cross-section arrayed along a
     # curve; Blender evaluates it into a tube.
-    ("lungs", "respiratory", 6000,
-     [(f"{lobe} lobe of {side} lung", "thorax")
-      for side, lobes in (("right", ("Superior", "Middle", "Inferior")),
-                          ("left", ("Superior", "Inferior")))
-      for lobe in lobes]),
+    *[(f"{side}_{lobe}_lobe", "respiratory", 1200, [(f"{za} lobe of {side} lung", "thorax")])
+      for side, lobes in (("right", (("upper", "Superior"), ("middle", "Middle"), ("lower", "Inferior"))),
+                          ("left", (("upper", "Superior"), ("lower", "Inferior"))))
+      for lobe, za in lobes],
     ("spinal_cord", "nervous", 2000, [("White matter of spinal cord", "spine")]),
     # BodyParts3D's sacrum takes in the coccyx: see ZANATOMY_CARVE.
     ("coccyx", "skeletal", SMALL_BONE, [("Coccyx", "trunk")]),
     ("thyroid_gland", "endocrine", 1000, [("Thyroid gland", "neck")]),
+    ("parathyroid_glands", "endocrine", 200,
+     za_pair("Superior parathyroid gland", "neck") + za_pair("Inferior parathyroid gland", "neck")),
+    ("nasopharynx", "respiratory", 300, [("Nasopharynx", "head_neck")]),
+    ("oropharynx", "respiratory", 300, [("Oropharynx", "head_neck")]),
+    ("laryngopharynx", "respiratory", 300, [("Laryngopharynx", "head_neck")]),
+    ("soft_palate", "digestive", 300, [("Soft palate", "head_neck")]),
+    ("uvula", "digestive", 300, [("Uvula of palate", "head_neck")]),
+    # BodyParts3D has the other two pairs.
+    ("salivary_glands", "digestive", 300, za_pair("Parotid gland", "head")),
 
     ("latissimus_dorsi", "muscular", BIG_MUSCLE, za_pair("Latissimus dorsi muscle", "trunk")),
     ("rectus_abdominis", "muscular", BIG_MUSCLE, za_pair("Rectus abdominis muscle", "trunk")),
@@ -344,6 +448,12 @@ ZANATOMY_TARGETS = [
     ("zygomaticus_major", "muscular", MUSCLE, za_pair("Zygomaticus major muscle", "head")),
     ("platysma", "muscular", MUSCLE, za_pair("Platysma", "head_neck")),
 ]
+
+# Parts cut from a BodyParts3D part: {id: (part, element)}. The faces of
+# the part lying below the bottom of the element (a bone, as a landmark)
+# become the new part. BodyParts3D's descending colon runs on into the
+# sigmoid colon, which starts at the pelvic brim (the bottom of L5).
+SPLITS = {"sigmoid_colon": ("descending_colon", "fifth lumbar vertebra")}
 
 # Z-Anatomy parts a BodyParts3D part already includes: {id: (part, metres)}.
 # The part loses its faces lying wholly within that distance of the Z-Anatomy

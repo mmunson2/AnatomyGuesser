@@ -10,7 +10,7 @@
 --phone opens index.html as a phone, which lands on the notecards
 (cards.html); only --js applies there, with D = window.CARDS_DEBUG.
 
---frame points the camera at a part and zooms to fit it; --view picks the
+--frame points the camera at a part (or group) and zooms to fit it; --view picks the
 side to look from (front, back, left, right, top: the patient's left/right).
 --js runs after the rest, with D = window.ANATOMY_DEBUG (see the end of
 js/viewer.js). Page errors are printed; the exit code is 1 if there were any.
@@ -35,9 +35,10 @@ SETUP = r"""([o, views]) => {
   if (o.select) D.select(o.select);
   const dir = new THREE.Vector3(...views[o.view]).normalize();
   if (o.frame) {
-    const mesh = D.meshById()[o.frame];
-    if (!mesh) throw new Error('no part ' + o.frame + ' in the ' + D.settings.body + ' body');
-    const box = new THREE.Box3().setFromObject(mesh);
+    const list = D.meshesOf(o.frame);
+    if (!list.length) throw new Error('no part ' + o.frame + ' in the ' + D.settings.body + ' body');
+    const box = new THREE.Box3();
+    list.forEach((m) => box.expandByObject(m));
     const centre = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3()).length();
     const dist = Math.max(0.25, size) / (2 * Math.tan(THREE.MathUtils.degToRad(D.camera.fov / 2))) * o.zoom;
